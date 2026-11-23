@@ -337,17 +337,39 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
 }
 .home-search input { min-width: 0; border-color: transparent; }
 .home-search button { flex: none; padding-inline: 1.3rem; }
-.home-hero #home-error { color: #ffdbdb; font-weight: 650; }
-.home-suggestions { justify-content: center; margin-top: .85rem; }
-.home-suggestions button {
-  color: var(--hero-text);
-  background: rgb(255 255 255 / 9%);
-  border-color: rgb(255 255 255 / 50%);
+.home-controls {
+  max-width: 54rem;
+  margin: 1.25rem auto 0;
+  padding: clamp(.75rem, 2.5vw, 1.25rem);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 18%);
 }
-.home-suggestions button:hover:not(:disabled), .home-suggestions button[aria-pressed="true"] {
-  background: var(--hero-text);
-  color: #173d2a;
+.home-control-group + .home-control-group {
+  margin-top: .85rem;
+  padding-top: .85rem;
+  border-top: 1px solid var(--line);
 }
+.home-control-group > p { margin-bottom: .45rem; font-size: .9rem; font-weight: 750; }
+.home-controls .quick, .home-products { gap: .5rem; }
+.home-controls button, .home-products button {
+  max-width: 100%;
+  color: var(--text);
+  border-color: var(--border);
+}
+.home-controls button[aria-pressed="true"], .home-products button[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-text);
+  border-color: var(--primary);
+  font-weight: 750;
+}
+.home-controls button[aria-pressed="true"]:hover, .home-products button[aria-pressed="true"]:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+.home-products { margin-bottom: 1rem; }
 .home-results { margin-top: 2rem; }
 .home-results-top, .history-header {
   display: flex;
@@ -357,7 +379,6 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
   gap: .75rem 1rem;
   margin-bottom: .8rem;
 }
-.home-filters button[aria-pressed="true"] { background: var(--green-tint); border-color: var(--primary); }
 .home-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
 .home-offers { display: grid; gap: .7rem; }
 .home-offer {

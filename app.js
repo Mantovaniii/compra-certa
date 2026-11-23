@@ -428,10 +428,11 @@ function mapRoutes(plan, start, finish) {
 function mapPin(id, items, selected, plan) {
   const store = stores[id];
   const [x, y] = mapStores[id];
-  const offer = items.find(item => item.store === id);
+  const storeOffers = items.filter(item => item.store === id);
+  const offer = !plan && storeOffers.length === 1 ? storeOffers[0] : null;
   const shortNames = { bairro: 'Mercado Bairro', economia: 'Hiper Economia', hortifruti: 'Hortifrúti' };
   const label = store.name + ' · ' + (store.open ? 'Aberta na consulta' : 'Fechada na consulta') +
-    ' · ' + km(storeLeg(id)[0]) + ' da origem' + (offer && !plan ? ' · ' + money(offer.price) : '');
+    ' · ' + km(storeLeg(id)[0]) + ' da origem' + (offer ? ' · ' + money(offer.price) : '');
   return `<a href="#map-selection" data-map-store="${id}" class="map-pin ${selected === id ? 'pin-selected' : ''}" aria-label="${label}">
     <g transform="translate(${x} ${y})">
       <rect class="pin-hit" x="-13" y="-29" width="149" height="54" rx="10"/>
@@ -439,7 +440,7 @@ function mapPin(id, items, selected, plan) {
       <path class="pin-shape" d="M0 4C-4-2-12-9-12-17a12 12 0 0 1 24 0C12-9 4-2 0 4Z"/>
       <circle cx="0" cy="-17" r="4" class="${store.open ? 'pin-open' : 'pin-closed'}"/>
       <text x="22" y="-11">${shortNames[id]}</text>
-      <text x="22" y="3" class="pin-price">${offer && !plan ? money(offer.price) + ' · ' : ''}${km(storeLeg(id)[0])}</text>
+      <text x="22" y="3" class="pin-price">${offer ? money(offer.price) + ' · ' : ''}${km(storeLeg(id)[0])}</text>
       <text x="22" y="16" class="pin-status">${store.open ? 'Aberta' : 'Fechada'}</text>
     </g>
   </a>`;
@@ -481,90 +482,140 @@ function cityMap(items, ids, plan) {
   </div>`;
 }
 
-const homeSorts = { all: 'Todos', sustainable: 'Sustentáveis', price: 'Mais Baratos', distance: 'Mais Próximos' };
-let homeProduct = 'tomate';
+const homeCategories = {
+  all: ['Todas as categorias'],
+  produce: ['Hortifrúti', ['tomate', 'maca', 'batata']],
+  pantry: ['Mercearia', ['arroz', 'feijao', 'oleo', 'cafe']],
+  bakery: ['Padaria & Laticínios', ['pao', 'leite']]
+};
+const homeFilterLabels = {
+  sustainable: ['🌱', 'Sustentáveis'],
+  near: ['⚡', 'Validade Próxima'],
+  distance: ['📍', 'Mais Próximos'],
+  price: ['💲', 'Menor Preço'],
+  open: ['🏪', 'Apenas Lojas Abertas']
+};
+const homeOrders = {
+  distance: (a, b) => storeLeg(a.store)[0] - storeLeg(b.store)[0],
+  price: (a, b) => a.price - b.price
+};
+const homeFilters = new Set();
+let homeCategory = 'all';
+let homeProduct = '';
 let homeQuery = '';
-let homeSort = 'all';
-let homeError = '';
+let homeTerm = '';
+let homeOrder = '';
 let homeAdded = null;
 let mapStore = null;
 
 function homeOffers() {
-  const result = offers.filter(offer => offer.product === homeProduct && eligibleOffer(offer) &&
-    (homeSort !== 'sustainable' || Object.keys(offer.evidence).length));
-  if (homeSort === 'price') result.sort((a, b) => a.price - b.price);
-  if (homeSort === 'distance') result.sort((a, b) => storeLeg(a.store)[0] - storeLeg(b.store)[0]);
+  const catalog = homeTerm ? matches(homeTerm) : Object.keys(products);
+  const category = homeCategories[homeCategory][1] ?? catalog;
+  const result = offers.filter(offer => {
+    const remaining = daysLeft(offer);
+    return catalog.includes(offer.product) && category.includes(offer.product) &&
+      (remaining === null || remaining >= 0) &&
+      (!homeFilters.has('sustainable') || ['organic', 'vegan', 'local'].some(key => offer.evidence[key])) &&
+      (!homeFilters.has('near') || (isNear(offer) && offer.regular > offer.price)) &&
+      (!homeFilters.has('open') || stores[offer.store].open);
+  });
+  if (homeOrder) result.sort(homeOrders[homeOrder]);
   return result;
+}
+
+function visibleHomeOffers(available) {
+  return homeProduct ? available.filter(offer => offer.product === homeProduct) : available;
 }
 
 function homeCard(offer) {
   const store = stores[offer.store];
   const product = products[offer.product];
+  const id = offer.product + '/' + offer.store;
+  const added = homeAdded === id;
+  const near = isNear(offer);
   const quantity = state.list[offer.product] ?? 0;
   return `<article class="home-offer">
     <div class="home-offer-top">
-      <div><h3><a href="${offerLink(offer)}">${store.name}</a></h3>
+      <div><h3><a href="${offerLink(offer)}" aria-label="${product.name} em ${store.name}">${product.name}</a></h3>
+        <p>${store.name}</p>
         <p class="hint">${km(storeLeg(offer.store)[0])} da origem · ${store.open ? 'Aberta na consulta' : 'Fechada na consulta'}</p></div>
       <div class="home-price"><strong>${money(offer.price)}</strong><span class="hint">${product.pack} · ${packPrice(offer)}</span></div>
     </div>
-    <div class="badges">${offerBadges(offer)}</div>
-    <button type="button" data-home-add="${offer.store}" ${homeAdded === offer.store ? 'data-added' : ''} ${quantity >= 20 ? 'disabled' : ''}>
-      ${homeAdded === offer.store ? '✓ Adicionado · ' + quantity + ' na lista' : quantity >= 20 ? 'Limite de 20 na lista' : 'Adicionar à lista de compras'}
+    ${near && offer.regular > offer.price ? `<p class="hint">Preço regular de ${money(offer.regular)} por embalagem</p>` : ''}
+    <div class="badges">${near ? validity(offer) : ''}${offerBadges(offer)}</div>
+    <button type="button" data-home-add="${id}" ${added ? 'data-added' : ''} ${quantity >= 20 ? 'disabled' : ''}>
+      ${added ? '✓ Adicionado · ' + quantity + ' na lista' : quantity >= 20 ? 'Limite de 20 na lista' : 'Adicionar à lista de compras'}
     </button>
   </article>`;
 }
 
+function homeOption(attribute, key, label, pressed, icon = '') {
+  return `<button type="button" data-home-${attribute}="${key}" aria-pressed="${pressed}" aria-controls="home-results">
+    ${icon ? `<span aria-hidden="true">${icon}</span> ` : ''}${escape(label)}</button>`;
+}
+
 function homeScreen() {
-  const results = homeOffers();
+  const available = homeOffers();
+  const availableProducts = [...new Set(available.map(offer => offer.product))];
+  if (homeProduct && !availableProducts.includes(homeProduct)) availableProducts.push(homeProduct);
+  const results = visibleHomeOffers(available);
+  const storeIds = [...new Set(results.map(offer => offer.store))];
+  const title = homeProduct ? products[homeProduct].name :
+    homeCategory === 'all' ? 'Ofertas de produtos' : homeCategories[homeCategory][0];
   return `<section class="home-hero" aria-labelledby="home-title">
     <h1 tabindex="-1" id="home-title">Encontre bons preços<br>perto de você.</h1>
     <p>Compare ofertas em São Carlos e monte sua lista de compras.</p>
     <form id="home-search" class="home-search">
       <label class="sr-only" for="home-query">Buscar produto</label>
-      <input id="home-query" list="home-catalog" value="${escape(homeQuery)}" aria-describedby="home-error" ${homeError ? 'aria-invalid="true"' : ''} placeholder="Qual produto você procura?" autocomplete="off">
+      <input type="search" id="home-query" list="home-catalog" value="${escape(homeQuery)}" placeholder="Qual produto você procura?" autocomplete="off">
       <datalist id="home-catalog">${Object.values(products).map(product => `<option value="${product.short}">${product.name}</option>`).join('')}</datalist>
       <button class="primary">Buscar</button>
     </form>
-    <p id="home-error" role="alert" ${homeError ? '' : 'hidden'}>${escape(homeError)}</p>
-    <div class="quick home-suggestions" role="group" aria-label="Sugestões de produtos">${['tomate', 'arroz', 'leite', 'cafe', 'oleo', 'pao'].map(id =>
-      `<button type="button" data-home-product="${id}" aria-pressed="${homeProduct === id}">${products[id].short}</button>`).join('')}</div>
-  </section>
-  <section class="home-results" aria-labelledby="home-results-title">
-    <div class="home-results-top">
-      <div><h2 id="home-results-title">${products[homeProduct].name}</h2>
-        <p class="hint">${results.length} ${results.length === 1 ? 'mercado encontrado' : 'mercados encontrados'}</p></div>
-      <div class="quick home-filters" role="group" aria-label="Filtrar e ordenar ofertas">${Object.entries(homeSorts).map(([key, label]) =>
-        `<button type="button" data-home-sort="${key}" aria-pressed="${homeSort === key}">${label}</button>`).join('')}</div>
+    <div class="home-controls">
+      <div class="home-control-group" role="group" aria-labelledby="home-categories-label">
+        <p id="home-categories-label">Categorias</p>
+        <div class="quick">${Object.entries(homeCategories).map(([key, [label]]) =>
+          homeOption('category', key, label, homeCategory === key)).join('')}</div>
+      </div>
+      <div class="home-control-group" role="group" aria-labelledby="home-filters-label">
+        <p id="home-filters-label">Filtros de produtos</p>
+        <div class="quick">${Object.entries(homeFilterLabels).map(([key, [icon, label]]) =>
+          homeOption('filter', key, label, homeFilters.has(key) || homeOrder === key, icon)).join('')}</div>
+      </div>
     </div>
+  </section>
+  <section class="home-results" id="home-results" aria-labelledby="home-results-title">
+    <div class="home-results-top">
+      <div><h2 id="home-results-title" tabindex="-1">${escape(title)}</h2>
+        <p class="hint" id="home-results-count">${homeTerm ? `Busca por “${escape(homeTerm)}” · ` : ''}${results.length} ${results.length === 1 ? 'oferta encontrada' : 'ofertas encontradas'}</p></div>
+    </div>
+    ${availableProducts.length > 1 || homeProduct ? `<div class="quick home-products" role="group" aria-label="Selecionar produto">
+      ${homeOption('product', 'all', 'Todos os produtos', !homeProduct)}
+      ${availableProducts.map(id => homeOption('product', id, products[id].short, homeProduct === id)).join('')}
+    </div>` : ''}
     <div class="layout home-layout">
-      <div class="home-offers">${results.length ? results.map(homeCard).join('') : '<p class="notice">Nenhuma oferta atende aos filtros para este produto.</p>'}</div>
+      <div class="home-offers">${results.length ? results.map(homeCard).join('') : '<p class="notice">Nenhuma oferta encontrada. Tente outro termo, categoria ou filtro.</p>'}</div>
       <section class="panel map-panel" aria-labelledby="home-map-title">
         <h3 id="home-map-title">Mercados no mapa</h3>
-        <p class="hint">Origem: ${escape(state.origin)} · <a href="#lista">Alterar origem e selos</a></p>
-        ${cityMap(results, results.map(offer => offer.store))}
+        <p class="hint">Origem: ${escape(state.origin)} · <a href="#lista">Alterar origem</a></p>
+        ${cityMap(results, storeIds)}
       </section>
     </div>
   </section>`;
 }
 
-function selectHomeProduct(id, focus) {
-  homeProduct = id;
-  homeQuery = products[id].short;
-  homeError = '';
+function updateHome(focus) {
   homeAdded = null;
   mapStore = null;
-  update('Ofertas de ' + products[id].name + ' carregadas.', focus);
+  update('');
+  ($(focus) ?? $('#home-results-title')).focus({ preventScroll: true });
+  announce($('#home-results-count').textContent);
 }
 
 function submitHomeSearch() {
-  homeQuery = $('#home-query').value.trim();
-  const term = normalize(homeQuery);
-  const candidates = term ? matches(term) : [];
-  const exact = candidates.find(id => normalize(products[id].short) === term || normalize(products[id].name) === term);
-  if (exact || candidates.length === 1) return selectHomeProduct(exact ?? candidates[0], '#home-query');
-  homeError = !term ? 'Digite o nome de um produto.' : candidates.length
-    ? 'Escolha um produto entre as sugestões.' : 'Nenhum produto encontrado. Tente arroz, leite ou café.';
-  update('', '#home-query');
+  homeTerm = homeQuery = $('#home-query').value.trim();
+  homeProduct = '';
+  updateHome('#home-query');
 }
 
 function listScreen() {
@@ -1459,7 +1510,7 @@ function screenClick(event) {
   if (mapControl) {
     event.preventDefault();
     mapStore = mapControl.dataset.mapStore ?? mapControl.dataset.mapChoice;
-    const items = locationPage().page === 'rota' ? routePlan()?.items ?? [] : homeOffers();
+    const items = locationPage().page === 'rota' ? routePlan()?.items ?? [] : visibleHomeOffers(homeOffers());
     document.querySelectorAll('[data-map-store]').forEach(marker => marker.classList.toggle('pin-selected', marker.dataset.mapStore === mapStore));
     document.querySelectorAll('[data-map-choice]').forEach(button => button.setAttribute('aria-pressed', button.dataset.mapChoice === mapStore));
     $('#map-selection').innerHTML = mapSelection(mapStore, items);
@@ -1474,15 +1525,25 @@ function screenClick(event) {
   if (details) comparisonReturn = { id: details.dataset.offers, link: link.hash };
   const button = event.target.closest('button');
   if (!button) return;
-  const { homeProduct: suggested, homeSort: sort, homeAdd, period } = button.dataset;
-  if (suggested) return selectHomeProduct(suggested, `[data-home-product="${suggested}"]`);
-  if (sort) {
-    homeSort = sort;
-    return update(homeSorts[sort] + '.', `[data-home-sort="${sort}"]`);
+  const { homeCategory: category, homeProduct: product, homeFilter: filter, homeAdd, period } = button.dataset;
+  if (category) {
+    homeCategory = category;
+    homeProduct = '';
+    return updateHome(`[data-home-category="${category}"]`);
+  }
+  if (product) {
+    homeProduct = product === 'all' ? '' : product;
+    return updateHome(`[data-home-product="${product}"]`);
+  }
+  if (filter) {
+    if (Object.hasOwn(homeOrders, filter)) homeOrder = homeOrder === filter ? '' : filter;
+    else if (homeFilters.has(filter)) homeFilters.delete(filter);
+    else homeFilters.add(filter);
+    return updateHome(`[data-home-filter="${filter}"]`);
   }
   if (homeAdd) {
     homeAdded = homeAdd;
-    return addProducts([homeProduct], `[data-home-add="${homeAdd}"]`);
+    return addProducts([homeAdd.split('/')[0]], `[data-home-add="${homeAdd}"]`);
   }
   if (period) {
     historyPeriod = Number(period);
@@ -1584,12 +1645,7 @@ document.addEventListener('DOMContentLoaded', () => {
       event.target.removeAttribute('aria-invalid');
       showSuggestions();
     }
-    if (event.target.id === 'home-query') {
-      homeQuery = event.target.value;
-      homeError = '';
-      $('#home-error').hidden = true;
-      event.target.removeAttribute('aria-invalid');
-    }
+    if (event.target.id === 'home-query') homeQuery = event.target.value;
     if (event.target.id === 'history-day') inspectHistory(event.target.value);
     if (event.target.id === 'destination') changeDestination(event.target);
     if (['consumption', 'fuel'].includes(event.target.id)) setEstimate(event);

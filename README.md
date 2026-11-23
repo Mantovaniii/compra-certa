@@ -27,13 +27,26 @@ No navegador, abra `http://localhost:8000`. HTML, CSS e JavaScript puro são suf
 
 | Tela | Como usar |
 | --- | --- |
-| **Início** · `#inicio` | Tela padrão. Busque pelo nome ou use uma sugestão para ver preços por embalagem e por kg ou litro, distâncias e selos. Use **Todos**, **Sustentáveis**, **Mais Baratos** ou **Mais Próximos**. Clique ou pressione Enter num marcador para consultar loja, status e oferta. Use **Adicionar à lista de compras** para incluir uma embalagem, com confirmação na própria oferta. |
+| **Início** · `#inicio` | Busque pelo nome ou por parte dele, escolha uma categoria e combine os filtros do Hero. Compare preços por embalagem e por kg ou litro, distâncias e selos. Selecione uma loja no mapa para ver suas ofertas. Use **Adicionar à lista de compras** para incluir uma embalagem, com confirmação na própria oferta. |
 | **Minha lista** · `#lista` | A lista inicial contém arroz, leite e tomate. Digite um nome para ver sugestões com a embalagem. Use ↑/↓ e Enter para escolher, ou separe vários nomes por vírgulas e pressione **Adicionar**. Use os atalhos, ajuste de 1 a 20 embalagens e remova itens. **Desfazer** fica disponível por 12 segundos após uma remoção. Edite a origem, o raio, a data da compra e os filtros antes de comparar. |
 | **Comparação de cestas** · `#comparar` | Compare os mercados elegíveis e a divisão entre duas lojas quando houver uma combinação que use ambas. Troque a prioridade de custo total, distância ou origem documentada. Expanda **Produtos e ofertas** para conferir preços, validade e fonte. A estrela alterna o favorito. Planos com itens faltantes exibem cobertura parcial e indicam o que falta. |
 | **Detalhes da oferta** · `#produto/<produto>/<loja>` | Confira descrição, categoria, embalagem, preço unitário, validade, evidências e preços nas outras lojas. Consulte endereço, horário, formas de pagamento e práticas de descarte da loja. No **Histórico de preços**, alterne entre **7**, **30** e **90 dias**. Selecione um ponto do gráfico ou use as setas no controle diário para consultar um valor. Os indicadores mostram o menor preço, a média do período e a diferença do preço atual em relação à média. O endereço `#produto/<produto>` abre a primeira oferta cadastrada. **Reportar divergência de preço ou validade** permite revisar e registrar um relato simulado. |
 | **Rota e resumo** · `#rota` | Escolha um plano completo na comparação. Confira o mapa, a sequência de saída e paradas, a distância de cada trecho, os itens por loja e os alertas. Desmarque **O destino final é o mesmo que o ponto de partida** para informar a chegada. Os custos, o tempo e a quilometragem são recalculados ao editar o destino ou o transporte. Copie o resumo para compartilhar ou use **Confirmar planejamento** para gravá-lo na sessão. |
 
 No cabeçalho, **Modo Escuro** e **Modo Claro** alternam o tema. **Leitura ampliada** pode ser ativada em ambos.
+
+### Categorias e filtros do Início
+
+| Categoria | Produtos |
+| --- | --- |
+| **Todas as categorias** | Todo o catálogo |
+| **Hortifrúti** | Tomate, maçã e batata |
+| **Mercearia** | Arroz, feijão, óleo e café |
+| **Padaria & Laticínios** | Pão e leite |
+
+- A busca ignora diferenças de acento e maiúsculas e funciona junto com a categoria e os filtros ativos. Envie a busca em branco para limpar o termo. Quando houver vários produtos nos resultados, escolha um deles ou use **Todos os produtos** para comparar as ofertas na mesma lista.
+- **Sustentáveis** exige pelo menos um selo de orgânico, vegano ou produtor local. **Validade Próxima** mostra lotes com desconto que vencem no dia da compra ou nos três dias seguintes. **Apenas Lojas Abertas** usa o status da consulta simulada. Esses filtros podem ficar ativos ao mesmo tempo.
+- **Mais Próximos** ordena pela distância da origem informada em **Minha lista**. **Menor Preço** ordena pelo preço da embalagem. Cada opção desativa a outra e pode ser desligada com um segundo clique. Os filtros do Início controlam as ofertas da tela inicial. Os controles de **Minha lista** configuram a comparação de cestas.
 
 ## Premissas da demonstração
 
@@ -43,7 +56,7 @@ No cabeçalho, **Modo Escuro** e **Modo Claro** alternam o tema. **Leitura ampli
 - Os mapas SVG são renderizados localmente e representam São Carlos de forma esquemática, com orientação, bairros e vias principais. As linhas e distâncias estimadas servem à comparação do protótipo. Vias de referência consultadas no [mapa urbano da EESC-USP](https://web.set.eesc.usp.br/lamem/imagens/ruas_centrais_campus.pdf) e no [cadastro de vias da Prefeitura de São Carlos](https://saocarlos.sp.gov.br/index.php/transporte-transito/176754-pontos-de-radar.html).
 - A cobertura conta tipos de produtos. O subtotal soma preço da embalagem × quantidade. A divisão testa todos os pares elegíveis, prioriza cobertura e escolhe o menor subtotal dos produtos nesses pares. A ordenação por custo considera combustível e dá prioridade a planos completos. Cestas parciais e planos com preços de mais de 24 horas ficam fora do selo de menor custo estimado.
 - O Mercado Bairro é a referência de economia para a mesma lista, com os filtros de oferta aplicados. O custo comparativo aparece quando a referência também cobre toda a lista e o deslocamento pode ser estimado. A data da compra determina a elegibilidade de lotes. O prazo de três dias inclui o dia planejado.
-- Os cinco filtros cumulativos são **Orgânico certificado**, **Vegano**, **Produtor local**, **Embalagem reciclável / Biodegradável** e **Sem agrotóxicos**. Os selos exibem explicações ao passar o ponteiro. Os detalhes distinguem documento, declaração e informação ausente. A ordenação por origem conta evidências documentadas, e o atalho **Sustentáveis** mostra ofertas com pelo menos um selo entre as elegíveis.
+- Na comparação de cestas, os cinco filtros cumulativos são **Orgânico certificado**, **Vegano**, **Produtor local**, **Embalagem reciclável / Biodegradável** e **Sem agrotóxicos**. Os selos exibem explicações ao passar o ponteiro. Os detalhes distinguem documento, declaração e informação ausente. A ordenação por origem conta evidências documentadas.
 - Os históricos são séries diárias simuladas de até 90 dias por produto e loja. O último ponto coincide com o preço exibido na oferta. As estatísticas e a diferença percentual são calculadas sobre o período selecionado.
 - Lista, preferências de busca, destino, relatos e confirmação usam armazenamento de sessão. Favoritos, tema e leitura ampliada usam armazenamento local. **Limpar dados do protótipo**, no rodapé, apaga esses dados mediante confirmação e reinicia a demonstração.
 
