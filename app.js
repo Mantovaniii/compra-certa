@@ -489,8 +489,8 @@ const homeCategories = {
   bakery: ['Padaria & Laticínios', ['pao', 'leite']]
 };
 const homeFilterLabels = {
-  sustainable: ['🌱', 'Sustentáveis'],
-  near: ['⚡', 'Validade Próxima'],
+  sustainable: ['🌱', 'Sustentáveis', 'Orgânico, Vegano, Produtor Local'],
+  near: ['⚡', 'Validade Próxima (Desconto)'],
   distance: ['📍', 'Mais Próximos'],
   price: ['💲', 'Menor Preço'],
   open: ['🏪', 'Apenas Lojas Abertas']
@@ -549,19 +549,43 @@ function homeCard(offer) {
   </article>`;
 }
 
-function homeOption(attribute, key, label, pressed, icon = '') {
+function homeOption(attribute, key, label, pressed) {
   return `<button type="button" data-home-${attribute}="${key}" aria-pressed="${pressed}" aria-controls="home-results">
-    ${icon ? `<span aria-hidden="true">${icon}</span> ` : ''}${escape(label)}</button>`;
+    ${escape(label)}</button>`;
+}
+
+function homeMenuOption(type, key, label, checked, description, icon = '') {
+  const role = type === 'category' ? 'menuitemradio' : 'menuitemcheckbox';
+  return `<button type="button" role="${role}" tabindex="-1" data-home-${type}="${key}" aria-checked="${checked}">
+    <span>${icon ? `<span aria-hidden="true">${icon}</span> ` : ''}${escape(label)}
+      ${description ? `<small>${escape(description)}</small>` : ''}
+    </span><span class="home-menu-check" aria-hidden="true">✓</span>
+  </button>`;
+}
+
+function homeDropdown(type, label, options, selection = '') {
+  return `<div class="home-dropdown">
+    <button class="home-dropdown-toggle" type="button" id="home-${type}-toggle" data-home-menu
+      aria-haspopup="true" aria-expanded="false" aria-controls="home-${type}-menu">
+      <span class="home-toggle-label"><span id="home-${type}-label">${label}</span> <span aria-hidden="true">▾</span></span>
+      ${type === 'category' ? `<small id="home-category-selection" ${selection ? '' : 'hidden'}>${escape(selection)}</small>` : ''}
+    </button>
+    <div class="home-menu" id="home-${type}-menu" role="menu" aria-labelledby="home-${type}-toggle" hidden>
+      ${options}
+    </div>
+  </div>`;
+}
+
+function homeFilterActive(key) {
+  return homeFilters.has(key) || homeOrder === key;
+}
+
+function homeFilterLabel() {
+  const count = homeFilters.size + Number(Boolean(homeOrder));
+  return count ? `Filtros (${count})` : 'Filtros';
 }
 
 function homeScreen() {
-  const available = homeOffers();
-  const availableProducts = [...new Set(available.map(offer => offer.product))];
-  if (homeProduct && !availableProducts.includes(homeProduct)) availableProducts.push(homeProduct);
-  const results = visibleHomeOffers(available);
-  const storeIds = [...new Set(results.map(offer => offer.store))];
-  const title = homeProduct ? products[homeProduct].name :
-    homeCategory === 'all' ? 'Ofertas de produtos' : homeCategories[homeCategory][0];
   return `<section class="home-hero" aria-labelledby="home-title">
     <h1 tabindex="-1" id="home-title">Encontre bons preços<br>perto de você.</h1>
     <p>Compare ofertas em São Carlos e monte sua lista de compras.</p>
@@ -569,22 +593,26 @@ function homeScreen() {
       <label class="sr-only" for="home-query">Buscar produto</label>
       <input type="search" id="home-query" list="home-catalog" value="${escape(homeQuery)}" placeholder="Qual produto você procura?" autocomplete="off">
       <datalist id="home-catalog">${Object.values(products).map(product => `<option value="${product.short}">${product.name}</option>`).join('')}</datalist>
-      <button class="primary">Buscar</button>
+      ${homeDropdown('category', 'Categorias', Object.entries(homeCategories).map(([key, [label, ids]]) =>
+        homeMenuOption('category', key, label, homeCategory === key, ids?.map(id => products[id].short).join(', '))
+      ).join(''), homeCategory === 'all' ? '' : homeCategories[homeCategory][0])}
+      ${homeDropdown('filter', homeFilterLabel(), Object.entries(homeFilterLabels).map(([key, [icon, label, description]]) =>
+        homeMenuOption('filter', key, label, homeFilterActive(key), description, icon)
+      ).join(''))}
+      <button class="primary" type="submit">Buscar</button>
     </form>
-    <div class="home-controls">
-      <div class="home-control-group" role="group" aria-labelledby="home-categories-label">
-        <p id="home-categories-label">Categorias</p>
-        <div class="quick">${Object.entries(homeCategories).map(([key, [label]]) =>
-          homeOption('category', key, label, homeCategory === key)).join('')}</div>
-      </div>
-      <div class="home-control-group" role="group" aria-labelledby="home-filters-label">
-        <p id="home-filters-label">Filtros de produtos</p>
-        <div class="quick">${Object.entries(homeFilterLabels).map(([key, [icon, label]]) =>
-          homeOption('filter', key, label, homeFilters.has(key) || homeOrder === key, icon)).join('')}</div>
-      </div>
-    </div>
-  </section>
-  <section class="home-results" id="home-results" aria-labelledby="home-results-title">
+  </section>${homeResults()}`;
+}
+
+function homeResults() {
+  const available = homeOffers();
+  const availableProducts = [...new Set(available.map(offer => offer.product))];
+  if (homeProduct && !availableProducts.includes(homeProduct)) availableProducts.push(homeProduct);
+  const results = visibleHomeOffers(available);
+  const storeIds = [...new Set(results.map(offer => offer.store))];
+  const title = homeProduct ? products[homeProduct].name :
+    homeCategory === 'all' ? 'Ofertas de produtos' : homeCategories[homeCategory][0];
+  return `<section class="home-results" id="home-results" aria-labelledby="home-results-title">
     <div class="home-results-top">
       <div><h2 id="home-results-title" tabindex="-1">${escape(title)}</h2>
         <p class="hint" id="home-results-count">${homeTerm ? `Busca por “${escape(homeTerm)}” · ` : ''}${results.length} ${results.length === 1 ? 'oferta encontrada' : 'ofertas encontradas'}</p></div>
@@ -607,14 +635,56 @@ function homeScreen() {
 function updateHome(focus) {
   homeAdded = null;
   mapStore = null;
-  update('');
-  ($(focus) ?? $('#home-results-title')).focus({ preventScroll: true });
+  $('#home-results').outerHTML = homeResults();
+  if (focus) ($(focus) ?? $('#home-results-title')).focus({ preventScroll: true });
   announce($('#home-results-count').textContent);
+}
+
+function closeHomeMenu(restoreFocus = false) {
+  const trigger = $('[data-home-menu][aria-expanded="true"]');
+  if (!trigger) return;
+  trigger.setAttribute('aria-expanded', 'false');
+  document.getElementById(trigger.getAttribute('aria-controls')).hidden = true;
+  if (restoreFocus) trigger.focus({ preventScroll: true });
+}
+
+function openHomeMenu(trigger, last = false) {
+  closeHomeMenu();
+  const menu = document.getElementById(trigger.getAttribute('aria-controls'));
+  trigger.setAttribute('aria-expanded', 'true');
+  menu.hidden = false;
+  const option = last ? menu.lastElementChild : menu.firstElementChild;
+  option.focus();
+}
+
+function homeMenuKey(event) {
+  const { target, key } = event;
+  const trigger = target.closest('[data-home-menu]');
+  if (trigger && (key === 'ArrowDown' || key === 'ArrowUp')) {
+    event.preventDefault();
+    openHomeMenu(trigger, key === 'ArrowUp');
+    return;
+  }
+  if (key === 'Escape' && $('[data-home-menu][aria-expanded="true"]')) {
+    event.preventDefault();
+    closeHomeMenu(true);
+    return;
+  }
+  const menu = target.closest('.home-menu');
+  if (!menu || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
+  event.preventDefault();
+  const options = [...menu.children];
+  const index = options.indexOf(target);
+  if (key === 'Home') options[0].focus();
+  else if (key === 'End') options.at(-1).focus();
+  else options[(index + (key === 'ArrowDown' ? 1 : -1) + options.length) % options.length].focus();
 }
 
 function submitHomeSearch() {
   homeTerm = homeQuery = $('#home-query').value.trim();
+  $('#home-query').value = homeQuery;
   homeProduct = '';
+  closeHomeMenu();
   updateHome('#home-query');
 }
 
@@ -1533,11 +1603,23 @@ function screenClick(event) {
   if (details) comparisonReturn = { id: details.dataset.offers, link: link.hash };
   const button = event.target.closest('button');
   if (!button) return;
+  if (button.hasAttribute('data-home-menu')) {
+    if (button.getAttribute('aria-expanded') === 'true') closeHomeMenu(true);
+    else openHomeMenu(button);
+    return;
+  }
   const { homeCategory: category, homeProduct: product, homeFilter: filter, homeAdd, period } = button.dataset;
   if (category) {
     homeCategory = category;
     homeProduct = '';
-    return updateHome(`[data-home-category="${category}"]`);
+    const menu = $('#home-category-menu');
+    menu.querySelector('[aria-checked="true"]').setAttribute('aria-checked', 'false');
+    button.setAttribute('aria-checked', 'true');
+    const selection = $('#home-category-selection');
+    selection.hidden = category === 'all';
+    selection.textContent = selection.hidden ? '' : homeCategories[category][0];
+    closeHomeMenu(true);
+    return updateHome();
   }
   if (product) {
     homeProduct = product === 'all' ? '' : product;
@@ -1547,7 +1629,11 @@ function screenClick(event) {
     if (Object.hasOwn(homeOrders, filter)) homeOrder = homeOrder === filter ? '' : filter;
     else if (homeFilters.has(filter)) homeFilters.delete(filter);
     else homeFilters.add(filter);
-    return updateHome(`[data-home-filter="${filter}"]`);
+    $('#home-filter-label').textContent = homeFilterLabel();
+    $('#home-filter-menu').querySelectorAll('[data-home-filter]').forEach(option => {
+      option.setAttribute('aria-checked', homeFilterActive(option.dataset.homeFilter));
+    });
+    return updateHome();
   }
   if (homeAdd) {
     homeAdded = homeAdd;
@@ -1658,7 +1744,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.target.id === 'destination') changeDestination(event.target);
     if (['consumption', 'fuel'].includes(event.target.id)) setEstimate(event);
   });
-  screen.addEventListener('keydown', event => { if (event.target.id === 'search') searchKey(event); });
+  screen.addEventListener('keydown', event => {
+    if (event.target.id === 'search') searchKey(event);
+    else homeMenuKey(event);
+  });
+  const closeOutsideHomeMenu = event => {
+    const open = $('[data-home-menu][aria-expanded="true"]');
+    if (open && !open.parentElement.contains(event.target)) closeHomeMenu();
+  };
+  document.addEventListener('click', closeOutsideHomeMenu, true);
+  document.addEventListener('focusin', closeOutsideHomeMenu);
   screen.addEventListener('pointerdown', event => { if (event.target.closest('[data-suggest]')) event.preventDefault(); });
   screen.addEventListener('focusout', event => { if (event.target.id === 'search') closeSuggestions(); });
   screen.addEventListener('submit', event => {

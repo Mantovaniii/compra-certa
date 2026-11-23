@@ -27,7 +27,7 @@ No navegador, abra `http://localhost:8000`. HTML, CSS e JavaScript puro são suf
 
 | Tela | Como usar |
 | --- | --- |
-| **Início** · `#inicio` | Busque pelo nome ou por parte dele, escolha uma categoria e combine os filtros do Hero. Compare preços por embalagem e por kg ou litro, distâncias e selos. Selecione uma loja no mapa para ver suas ofertas. O resumo abaixo do mapa mostra a origem e, quando configurado, o destino final separado. Use **Adicionar à lista de compras** para incluir uma embalagem, com confirmação na própria oferta. |
+| **Início** · `#inicio` | Busque pelo nome ou por parte dele e use **Categorias** e **Filtros** ao lado do campo de busca. Compare preços por embalagem e por kg ou litro, distâncias e selos. Selecione uma loja no mapa para ver suas ofertas. O resumo abaixo do mapa mostra a origem e, quando configurado, o destino final separado. Use **Adicionar à lista de compras** para incluir uma embalagem, com confirmação na própria oferta. |
 | **Minha lista** · `#lista` | A lista inicial contém arroz, leite e tomate. Digite um nome para ver sugestões com a embalagem. Use ↑/↓ e Enter para escolher, ou separe vários nomes por vírgulas e pressione **Adicionar**. Use os atalhos, ajuste de 1 a 20 embalagens e remova itens. **Desfazer** fica disponível por 12 segundos após uma remoção. Edite a origem, o destino final, o raio, a data da compra e os filtros antes de comparar. |
 | **Comparação de cestas** · `#comparar` | Compare os mercados elegíveis e a divisão entre duas lojas quando houver uma combinação que use ambas. Troque a prioridade de custo total, distância ou origem documentada. Expanda **Produtos e ofertas** para conferir preços, validade e fonte. A estrela alterna o favorito. Planos com itens faltantes exibem cobertura parcial e indicam o que falta. |
 | **Detalhes da oferta** · `#produto/<produto>/<loja>` | Confira descrição, categoria, embalagem, preço unitário, validade, evidências e preços nas outras lojas. Consulte endereço, horário, formas de pagamento e práticas de descarte da loja. No **Histórico de preços**, alterne entre **7**, **30** e **90 dias**. Selecione um ponto do gráfico ou use as setas no controle diário para consultar um valor. Os indicadores mostram o menor preço, a média do período e a diferença do preço atual em relação à média. O endereço `#produto/<produto>` abre a primeira oferta cadastrada. **Reportar divergência de preço ou validade** permite revisar e registrar um relato simulado. |
@@ -44,6 +44,8 @@ No cabeçalho, **Modo Escuro** e **Modo Claro** alternam o tema. **Leitura ampli
 
 ### Categorias e filtros do Início
 
+Abra **Categorias** ou **Filtros** na barra de busca. Escolher uma categoria atualiza as ofertas, fecha o menu e mostra a seleção no botão. O menu **Filtros** fica aberto para combinar opções. As ofertas e a contagem no botão são atualizadas a cada alteração.
+
 | Categoria | Produtos |
 | --- | --- |
 | **Todas as categorias** | Todo o catálogo |
@@ -52,8 +54,9 @@ No cabeçalho, **Modo Escuro** e **Modo Claro** alternam o tema. **Leitura ampli
 | **Padaria & Laticínios** | Pão e leite |
 
 - A busca ignora diferenças de acento e maiúsculas e funciona junto com a categoria e os filtros ativos. Envie a busca em branco para limpar o termo. Quando houver vários produtos nos resultados, escolha um deles ou use **Todos os produtos** para comparar as ofertas na mesma lista.
-- **Sustentáveis** exige pelo menos um selo de orgânico, vegano ou produtor local. **Validade Próxima** mostra lotes com desconto que vencem no dia da compra ou nos três dias seguintes. **Apenas Lojas Abertas** usa o status da consulta simulada. Esses filtros podem ficar ativos ao mesmo tempo.
+- **Sustentáveis** exige pelo menos um selo de orgânico, vegano ou produtor local. **Validade Próxima (Desconto)** mostra lotes com desconto que vencem no dia da compra ou nos três dias seguintes. **Apenas Lojas Abertas** usa o status da consulta simulada. Esses filtros podem ficar ativos ao mesmo tempo.
 - **Mais Próximos** ordena pela distância da origem informada em **Minha lista**. **Menor Preço** ordena pelo preço da embalagem. Cada opção desativa a outra e pode ser desligada com um segundo clique. Os filtros do Início controlam as ofertas da tela inicial. Os controles de **Minha lista** configuram a comparação de cestas.
+- Com o teclado, use **Enter** ou **Espaço** para abrir o menu e selecionar uma opção. As setas **↑** e **↓** percorrem as opções. Pressione **Esc** para fechar e devolver o foco ao botão. Clicar fora ou clicar novamente no botão também fecha o menu.
 
 ## Premissas da demonstração
 
