@@ -597,8 +597,8 @@ function homeScreen() {
       <div class="home-offers">${results.length ? results.map(homeCard).join('') : '<p class="notice">Nenhuma oferta encontrada. Tente outro termo, categoria ou filtro.</p>'}</div>
       <section class="panel map-panel" aria-labelledby="home-map-title">
         <h3 id="home-map-title">Mercados no mapa</h3>
-        <p class="hint">Origem: ${escape(state.origin)} · <a href="#lista">Alterar origem</a></p>
         ${cityMap(results, storeIds)}
+        <p class="hint">Origem: ${escape(state.origin)}${!state.sameDestination && state.destination ? ' · Destino: ' + escape(state.destination) : ''} · <a href="#lista">Editar percurso</a></p>
       </section>
     </div>
   </section>`;
@@ -658,19 +658,14 @@ function listScreen() {
       </section>
       <aside class="panel" aria-labelledby="settings-title">
         ${sectionTitle('settings-title', 'Parâmetros da busca', '⌖')}
-        <div class="field">
-          <label for="origin">Origem da viagem</label>
-          <input id="origin" list="origins" value="${escape(state.origin)}" aria-describedby="origin-info">
-          ${placeOptions('origins')}
-          <p class="hint" id="origin-info">${originHint()}</p>
-          <button id="locate">Usar localização do dispositivo</button>
-        </div>
+        ${originSettings()}
+        ${destinationSettings()}
         <div class="field">
           <label for="radius">Raio de distância</label>
           <select id="radius" aria-describedby="radius-help">
             ${[1, 3, 5, 10].map(value => `<option value="${value}" ${value === state.filters.radius ? 'selected' : ''}>Até ${value} km</option>`).join('')}
           </select>
-          <p class="hint" id="radius-help">Da origem até cada loja. Configure o destino final na tela de rota.</p>
+          <p class="hint" id="radius-help">O raio é medido da origem até cada loja.</p>
         </div>
         <div class="field">
           <label for="shopping-date">Data da compra</label>
@@ -685,6 +680,16 @@ function listScreen() {
         </div>
       </aside>
     </div>`;
+}
+
+function originSettings() {
+  return `<div class="field">
+    <label for="origin">Origem da viagem</label>
+    <input id="origin" list="origins" value="${escape(state.origin)}" aria-describedby="origin-info">
+    ${placeOptions('origins')}
+    <p class="hint" id="origin-info">${originHint()}</p>
+    <button id="locate">Usar localização do dispositivo</button>
+  </div>`;
 }
 
 function originHint() {
@@ -943,7 +948,7 @@ function destinationHint() {
 
 function destinationSettings() {
   return `<fieldset class="destination-settings"><legend>Destino da rota</legend>
-    <label class="check"><input id="same-destination" type="checkbox" ${state.sameDestination ? 'checked' : ''}> O destino final é o mesmo que o ponto de partida</label>
+    <label class="check"><input id="same-destination" type="checkbox" aria-controls="destination-fields" ${state.sameDestination ? 'checked' : ''}> O destino final é o mesmo que o de partida</label>
     <div class="field" id="destination-fields" ${state.sameDestination ? 'hidden' : ''}>
       <label for="destination">Destino final</label>
       <input id="destination" list="destinations" maxlength="100" value="${escape(state.destination)}" placeholder="Ex.: Casa, Trabalho, UFSCar" aria-describedby="destination-info">
@@ -974,8 +979,9 @@ function canConfirm(plan) {
 }
 
 function routeScreen(plan) {
-  if (!plan) return heading('Rota e resumo', 'Escolha um plano completo na comparação para ver o percurso.') +
-    `<section class="panel stack">${destinationSettings()}
+  if (!plan) return heading('Rota e resumo', 'Escolha um plano completo na comparação para calcular o percurso até o destino final.') +
+    `<section class="panel stack">${originSettings()}
+      ${destinationSettings()}
       <div class="actions"><a class="button primary" href="#comparar">Abrir comparação</a><a class="button" href="#lista">Voltar e editar lista</a></div>
     </section>`;
   const alerts = plan.items.filter(offer => isNear(offer) || isStale(offer) || offer.expires === null);
@@ -1366,11 +1372,13 @@ function changeDestination(input) {
   $('#destination-info').textContent = state.sameDestination ? '' : destinationHint();
   state.saved = null;
   persist();
+  const map = $('#route-map');
+  if (!map) return;
   const plan = routePlan();
   if (!plan) return;
   $('#saved-plan').hidden = true;
   $('#route-metrics').textContent = routeMetrics(plan);
-  $('#route-map').innerHTML = cityMap(plan.items, plan.stores, plan);
+  map.innerHTML = cityMap(plan.items, plan.stores, plan);
   $('.timeline').innerHTML = routeStops(plan);
   $('#route-costs').innerHTML = routeCosts(plan);
   $('#save').disabled = !canConfirm(plan);

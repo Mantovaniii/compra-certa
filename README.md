@@ -27,13 +27,20 @@ No navegador, abra `http://localhost:8000`. HTML, CSS e JavaScript puro são suf
 
 | Tela | Como usar |
 | --- | --- |
-| **Início** · `#inicio` | Busque pelo nome ou por parte dele, escolha uma categoria e combine os filtros do Hero. Compare preços por embalagem e por kg ou litro, distâncias e selos. Selecione uma loja no mapa para ver suas ofertas. Use **Adicionar à lista de compras** para incluir uma embalagem, com confirmação na própria oferta. |
-| **Minha lista** · `#lista` | A lista inicial contém arroz, leite e tomate. Digite um nome para ver sugestões com a embalagem. Use ↑/↓ e Enter para escolher, ou separe vários nomes por vírgulas e pressione **Adicionar**. Use os atalhos, ajuste de 1 a 20 embalagens e remova itens. **Desfazer** fica disponível por 12 segundos após uma remoção. Edite a origem, o raio, a data da compra e os filtros antes de comparar. |
+| **Início** · `#inicio` | Busque pelo nome ou por parte dele, escolha uma categoria e combine os filtros do Hero. Compare preços por embalagem e por kg ou litro, distâncias e selos. Selecione uma loja no mapa para ver suas ofertas. O resumo abaixo do mapa mostra a origem e, quando configurado, o destino final separado. Use **Adicionar à lista de compras** para incluir uma embalagem, com confirmação na própria oferta. |
+| **Minha lista** · `#lista` | A lista inicial contém arroz, leite e tomate. Digite um nome para ver sugestões com a embalagem. Use ↑/↓ e Enter para escolher, ou separe vários nomes por vírgulas e pressione **Adicionar**. Use os atalhos, ajuste de 1 a 20 embalagens e remova itens. **Desfazer** fica disponível por 12 segundos após uma remoção. Edite a origem, o destino final, o raio, a data da compra e os filtros antes de comparar. |
 | **Comparação de cestas** · `#comparar` | Compare os mercados elegíveis e a divisão entre duas lojas quando houver uma combinação que use ambas. Troque a prioridade de custo total, distância ou origem documentada. Expanda **Produtos e ofertas** para conferir preços, validade e fonte. A estrela alterna o favorito. Planos com itens faltantes exibem cobertura parcial e indicam o que falta. |
 | **Detalhes da oferta** · `#produto/<produto>/<loja>` | Confira descrição, categoria, embalagem, preço unitário, validade, evidências e preços nas outras lojas. Consulte endereço, horário, formas de pagamento e práticas de descarte da loja. No **Histórico de preços**, alterne entre **7**, **30** e **90 dias**. Selecione um ponto do gráfico ou use as setas no controle diário para consultar um valor. Os indicadores mostram o menor preço, a média do período e a diferença do preço atual em relação à média. O endereço `#produto/<produto>` abre a primeira oferta cadastrada. **Reportar divergência de preço ou validade** permite revisar e registrar um relato simulado. |
-| **Rota e resumo** · `#rota` | Escolha um plano completo na comparação. Confira o mapa, a sequência de saída e paradas, a distância de cada trecho, os itens por loja e os alertas. Desmarque **O destino final é o mesmo que o ponto de partida** para informar a chegada. Os custos, o tempo e a quilometragem são recalculados ao editar o destino ou o transporte. Copie o resumo para compartilhar ou use **Confirmar planejamento** para gravá-lo na sessão. |
+| **Rota e resumo** · `#rota` | Edite a origem e o destino final enquanto escolhe um plano completo na comparação. Com um plano selecionado, confira o mapa, a sequência de saída e paradas, a distância de cada trecho, os itens por loja e os alertas. O destino final pode ser alterado na própria tela, com atualização imediata do mapa, da quilometragem, do tempo e do custo de deslocamento. Copie o resumo para compartilhar ou use **Confirmar planejamento** para gravá-lo na sessão. |
 
 No cabeçalho, **Modo Escuro** e **Modo Claro** alternam o tema. **Leitura ampliada** pode ser ativada em ambos.
+
+### Configurar e validar o destino final
+
+1. Em **Minha lista**, logo abaixo de **Origem da viagem**, desmarque **O destino final é o mesmo que o de partida** e digite `UFSCar`. A opção vem marcada por padrão.
+2. Confira o destino no resumo do mapa do **Início**. Abra **Rota e resumo** sem selecionar um plano e confira se a origem e o destino continuam editáveis.
+3. Escolha um plano completo na comparação. Na rota, digite `Casa` e depois `Trabalho`. Confira a atualização da última parada, do marcador de chegada, da linha do último trecho, da distância, da duração e do custo de combustível no modo **Carro**.
+4. Marque a opção para voltar à origem e desmarque para recuperar o último destino digitado. Volte a **Minha lista** ou recarregue a página na mesma sessão para conferir a configuração.
 
 ### Categorias e filtros do Início
 

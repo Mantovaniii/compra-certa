@@ -405,6 +405,9 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
 }
 .sustain-filters legend, .destination-settings legend { padding-inline: .3rem; }
 .sustain-filters .check { padding-block: .18rem; }
+.destination-settings { border-color: var(--primary); background: var(--green-tint); }
+.destination-settings .check { font-weight: 650; }
+.destination-settings .field { margin-top: .55rem; }
 .sustainability { border: 1px solid transparent; }
 .badge-vegan { background: #f0eafd; color: #563880; }
 .badge-local { background: #e4effb; color: #224b73; }
