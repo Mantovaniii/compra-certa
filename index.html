@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#166534">
+  <title>Início | Compra Certa</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip button primary" href="#conteudo">Ir para o conteúdo principal</a>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="#inicio">
+        <span class="brand-mark" aria-hidden="true">▤</span>
+        <span>Compra Certa</span>
+      </a>
+      <div class="header-controls">
+        <button type="button" id="theme" class="reading-button">Modo Escuro</button>
+        <button type="button" id="reading" class="reading-button" aria-pressed="false">
+          <span class="reading-icon" aria-hidden="true">Aa</span> Leitura ampliada
+        </button>
+      </div>
+    </div>
+  </header>
+  <main class="shell" id="conteudo" tabindex="-1">
+    <div id="screen"></div>
+    <noscript><p>Ative o JavaScript para montar a lista e comparar suas compras.</p></noscript>
+  </main>
+  <nav class="site-nav" aria-label="Planejamento de compras">
+    <div class="shell nav-inner">
+      <a href="#inicio"><span aria-hidden="true">⌂</span> Início</a>
+      <a href="#lista"><span aria-hidden="true">☷</span> Minha lista</a>
+      <a href="#comparar"><span aria-hidden="true">⇄</span> Comparar</a>
+      <a href="#rota"><span aria-hidden="true">⌖</span> Rota e resumo</a>
+    </div>
+  </nav>
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <span>Compra Certa · Protótipo IHC / UFSCar</span>
+      <span>Dados simulados · São Carlos, SP</span>
+      <button type="button" id="clear-data">Limpar dados do protótipo</button>
+    </div>
+  </footer>
+  <div id="status" class="sr-only" role="status" aria-atomic="true"></div>
+  <aside id="undo-region" class="toast" aria-label="Ação recente" hidden>
+    <span id="undo-text"></span>
+    <button type="button" id="undo" class="button">Desfazer</button>
+  </aside>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+    <form method="dialog">
+      <h2 id="confirm-title">Limpar toda a lista?</h2>
+      <p id="confirm-text">Todos os itens da lista serão removidos.</p>
+      <div class="actions">
+        <button class="button" value="cancel" autofocus>Cancelar</button>
+        <button class="button danger-fill" value="clear">Limpar lista</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="report-dialog" aria-labelledby="report-title">
+    <form id="report-form">
+      <h2 id="report-title">Reportar divergência</h2>
+      <p id="report-offer"></p>
+      <div id="report-fields">
+        <label for="report-type">Tipo de divergência</label>
+        <select id="report-type" name="type" required>
+          <option value="">Selecione o tipo</option>
+          <option>Preço</option><option>Validade</option><option>Horário</option><option>Origem</option>
+        </select>
+        <label for="report-note">O que você encontrou?</label>
+        <textarea id="report-note" name="note" rows="3" maxlength="400" required></textarea>
+        <p class="hint">Até 400 caracteres. Use apenas informações sobre a oferta.</p>
+      </div>
+      <section id="report-summary" aria-labelledby="report-review-title" hidden>
+        <h3 id="report-review-title" tabindex="-1">Confira seu relato</h3>
+        <p id="report-preview"></p>
+        <p class="hint">O relato será registrado nesta sessão de demonstração.</p>
+      </section>
+      <p id="report-error" class="error" role="alert" hidden></p>
+      <div class="actions">
+        <button type="button" id="report-cancel" class="button">Cancelar</button>
+        <button type="button" id="report-edit" class="button" hidden>Editar relato</button>
+        <button class="button primary" id="report-next">Revisar relato</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
