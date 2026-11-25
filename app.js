@@ -16,8 +16,9 @@ const products = {
 const stores = {
   bairro: { name: 'Mercado Bairro', address: 'Rua Miguel Petroni, 1200 - Santa Felícia', km: 1.2, min: 8, open: true },
   economia: { name: 'Hipermercado Economia', address: 'Avenida São Carlos, 2800 - Centro', km: 3.4, min: 18, open: true },
-  hortifruti: { name: 'Hortifrúti e Mercearia São Carlos', address: 'Rua XV de Novembro, 850 - Centro', km: 2.1, min: 12, open: true }
+  hortifruti: { name: 'Hortifrúti e Mercearia São Carlos', address: 'Rua XV de Novembro, 850 - Centro', km: 2.1, min: 12, open: false }
 };
+const storeConsultation = '19h30 de um dia útil';
 
 const productDetails = {
   arroz: ['Grãos e cereais', 'Arroz branco polido de grão longo, indicado para o preparo diário e acompanhamentos.'],
@@ -58,7 +59,7 @@ const sustainability = {
   pesticideFree: ['Sem agrotóxicos', 'Cultivo sem uso de agrotóxicos declarado pelo fornecedor.']
 };
 const attributes = Object.fromEntries(Object.entries(sustainability).map(([key, [label]]) => [key, label]));
-const defaults = { radius: 5, open: true, onlyFav: false, near: true,
+const defaults = { radius: 5, open: false, onlyFav: false, near: true,
   organic: false, vegan: false, local: false, recyclable: false, pesticideFree: false };
 const filterLabels = {
   open: 'Apenas lojas abertas', onlyFav: 'Apenas lojas favoritas', near: 'Incluir ofertas com validade próxima',
@@ -203,6 +204,11 @@ function todayInputValue() {
   const today = new Date();
   return [today.getFullYear(), today.getMonth() + 1, today.getDate()]
     .map(value => String(value).padStart(2, '0')).join('-');
+}
+
+function shoppingInputValue() {
+  const today = todayInputValue();
+  return state.shoppingDate >= today ? state.shoppingDate : today;
 }
 
 function shoppingDay() {
@@ -467,7 +473,7 @@ function mapSelection(id, items) {
   return `<strong>${store.name}</strong>
     <span class="hint">${store.address} · ${store.open ? 'Aberta na consulta' : 'Fechada na consulta'} · ${km(storeLeg(id)[0])} da origem</span>
     <ul class="map-offers">${items.filter(offer => offer.store === id).map(offer =>
-      `<li><a href="${offerLink(offer)}">${products[offer.product].short}</a> · ${money(offer.price)} por embalagem · ${packPrice(offer)}</li>`).join('')}</ul>`;
+      `<li><a href="${offerLink(offer)}">${products[offer.product].short}</a> · ${money(offer.price)} por embalagem · ${packPrice(offer)} ${priceFreshness(offer)}</li>`).join('')}</ul>`;
 }
 
 function cityMap(items, ids, plan) {
@@ -504,7 +510,7 @@ const homeCategories = {
   bakery: ['Padaria & Laticínios', ['pao', 'leite']]
 };
 const homeFilterLabels = {
-  sustainable: ['🌱', 'Sustentáveis', 'Orgânico, Vegano, Produtor Local'],
+  sustainable: ['🌱', 'Orgânico, vegano ou local', 'Mostra ofertas com pelo menos um desses atributos.'],
   near: ['⚡', 'Validade Próxima (Desconto)'],
   distance: ['📍', 'Mais Próximos'],
   price: ['💲', 'Menor Preço'],
@@ -558,7 +564,7 @@ function homeCard(offer) {
       <div class="home-price"><strong>${money(offer.price)}</strong><span class="hint">${product.pack} · ${packPrice(offer)}</span></div>
     </div>
     ${near && offer.regular > offer.price ? `<p class="hint">Preço regular de ${money(offer.regular)} por embalagem</p>` : ''}
-    <div class="badges">${near ? validity(offer) : ''}${offerBadges(offer)}</div>
+    <div class="badges">${priceFreshness(offer)}${near ? validity(offer) : ''}${offerBadges(offer)}</div>
     <div class="actions home-offer-actions">
       <button type="button" data-home-add="${id}" ${added ? 'data-added' : ''} ${quantity >= 20 ? 'disabled' : ''}>
         ${added ? '✓ Adicionado · ' + quantity + ' na lista' : quantity >= 20 ? 'Limite de 20 na lista' : 'Adicionar produto à lista'}
@@ -637,6 +643,7 @@ function homeResults() {
         <p class="hint" id="home-results-count">${homeTerm ? `Busca por “${escape(homeTerm)}” · ` : ''}${results.length} ${results.length === 1 ? 'oferta encontrada' : 'ofertas encontradas'}</p></div>
       ${results.length ? `<button type="button" id="home-view" aria-controls="home-map home-offers">${homeView === 'map' ? 'Ver ofertas' : 'Ver mapa'}</button>` : ''}
     </div>
+    <p class="hint">Horário simulado das lojas: ${storeConsultation}.</p>
     ${availableProducts.length > 1 || homeProduct ? `<div class="quick home-products" role="group" aria-label="Selecionar produto">
       ${homeOption('product', 'all', 'Todos os produtos', !homeProduct)}
       ${availableProducts.map(id => homeOption('product', id, products[id].short, homeProduct === id)).join('')}
@@ -767,8 +774,9 @@ function listScreen() {
         </div>
         <div class="field">
           <label for="shopping-date">Data da compra</label>
-          <input type="date" id="shopping-date" min="${todayInputValue()}" value="${escape(state.shoppingDate || todayInputValue())}" aria-describedby="date-help">
+          <input type="date" id="shopping-date" min="${todayInputValue()}" value="${escape(shoppingInputValue())}" aria-describedby="date-help date-error">
           <p class="hint" id="date-help">Usada para conferir a validade dos lotes.</p>
+          <p class="error" id="date-error" hidden></p>
         </div>
         <fieldset><legend>Disponibilidade e lotes</legend>${['open', 'onlyFav', 'near'].map(filter).join('')}</fieldset>
         ${sustainabilityFilters()}
@@ -833,9 +841,12 @@ function validity(offer) {
   return `<span class="badge ${days <= 3 ? 'warning' : ''}">${label}</span>`;
 }
 
+function priceFreshness(offer) {
+  return isStale(offer) ? '<span class="badge warning">Preço informado há mais de 24 h</span>' : '';
+}
+
 function updateTime(offer) {
-  return `<span class="hint">Atualizado em ${timeFormatter.format(offer.updated)} · ${offer.source}</span>
-    ${isStale(offer) ? '<span class="badge warning">Preço informado há mais de 24 h</span>' : ''}`;
+  return `<span class="hint">Atualizado em ${timeFormatter.format(offer.updated)} · ${offer.source}</span> ${priceFreshness(offer)}`;
 }
 
 function offerRow(offer, showStore = false) {
@@ -919,7 +930,8 @@ function comparisonResults() {
     : 'O Mercado Bairro não cobre a cesta com os filtros de oferta.';
   return `
     <div class="results-context stack">
-      <p class="hint">Origem: ${escape(state.origin)} · Destino final: ${escape(destinationName())} · Raio: ${state.filters.radius} km · ${state.mode === 'car' ? 'Carro' : 'A pé'} · Compra em ${shoppingDateFormatter.format(shoppingDay() * dayMs)} · Consulta das lojas em ${timeFormatter.format(state.demoTime)}.</p>
+      <p class="hint">Origem: ${escape(state.origin)} · Destino final: ${escape(destinationName())} · Raio: ${state.filters.radius} km · ${state.mode === 'car' ? 'Carro' : 'A pé'} · Compra em ${shoppingDateFormatter.format(shoppingDay() * dayMs)}.</p>
+      <p class="hint">Horário simulado das lojas: ${storeConsultation}.</p>
       <p class="hint">${filters.length ? filters.join(' · ') : 'Sem filtros adicionais'}${state.filters.near ? '' : ' · Validade próxima excluída'}.</p>
       ${referenceContext ? `<p class="hint">${referenceContext}</p>` : ''}
       ${types() && reference.total === null ? '<p class="notice warning">Total não estimado. Abra “Editar transporte” e informe consumo e preço válidos.</p>' : ''}
@@ -1125,12 +1137,20 @@ function routeCosts(plan) {
     ? '<p class="notice warning">Preencha consumo e preço com valores válidos para estimar o total de carro.</p>' : '');
 }
 
-function destinationHint() {
-  if (!state.destination) return 'Informe o destino final. Enquanto o campo estiver vazio, a estimativa usa o Centro.';
+function destinationEstimateNote() {
+  if (!hasTripDestination()) return '';
   const profile = destinationProfileKey();
   const alias = normalize(state.destination.split(',')[0]);
-  if (Object.hasOwn(destinationAliases, alias)) return 'Referência simulada: ' + placeNames.find(name => profileKey(name) === profile) + '.';
-  return profile ? 'Local de chegada no mapa esquemático de São Carlos.' : 'Destino fora do catálogo. A distância final usa o Centro como referência aproximada.';
+  if (!profile) return 'Destino fora do catálogo. A distância final usa o Centro como referência aproximada.';
+  if (!state.sameDestination && Object.hasOwn(destinationAliases, alias)) {
+    return 'Referência simulada: ' + placeNames.find(name => profileKey(name) === profile) + '.';
+  }
+  return '';
+}
+
+function destinationHint() {
+  if (!state.destination) return 'Informe o destino final. Enquanto o campo estiver vazio, a estimativa usa o Centro.';
+  return destinationEstimateNote() || 'Local de chegada no mapa esquemático de São Carlos.';
 }
 
 function destinationSettings() {
@@ -1161,8 +1181,16 @@ function routeStops(plan) {
   </li>`).join('');
 }
 
+function hasTripDestination() {
+  return state.sameDestination || Boolean(state.destination.trim());
+}
+
+function canCopyPlan(plan) {
+  return Boolean(plan) && hasTripDestination() && !selectionChanged(plan);
+}
+
 function canConfirm(plan) {
-  return !selectionChanged(plan) && plan.total !== null && (state.sameDestination || Boolean(state.destination));
+  return canCopyPlan(plan) && plan.total !== null;
 }
 
 function transportSettings() {
@@ -1192,7 +1220,7 @@ function routeShopping(plan) {
     </li>`).join('')}</ul></section>`).join('') +
     (alerts.length ? `<div class="notice warning"><strong>Confira estes lotes antes de sair</strong>
       <ul>${alerts.map(offer => `<li>${products[offer.product].short} · ${stores[offer.store].name}<br>${validity(offer)}
-        ${isStale(offer) ? '<span class="badge warning">Preço informado há mais de 24 h</span>' : ''}</li>`).join('')}</ul></div>` : '');
+        ${priceFreshness(offer)}</li>`).join('')}</ul></div>` : '');
 }
 
 function routeScreen(plan) {
@@ -1223,7 +1251,8 @@ function routeScreen(plan) {
         ${transportSettings()}
         <div id="route-costs" class="stack">${routeCosts(plan)}</div>
         <div class="summary-actions stack">
-          <button class="button wide" id="copy" ${selectionChanged(plan) ? 'disabled' : ''}>Copiar lista para WhatsApp / Área de transferência</button>
+          <button class="button wide" id="copy" aria-describedby="copy-destination" ${canCopyPlan(plan) ? '' : 'disabled'}>Copiar lista para WhatsApp / Área de transferência</button>
+          <p class="hint" id="copy-destination" ${hasTripDestination() ? 'hidden' : ''}>Informe o destino final para copiar o resumo.</p>
           <p class="notice success" id="copy-feedback" hidden>Lista copiada. Você pode colar no WhatsApp.</p>
           <div class="field" id="copy-fallback" hidden><label for="copy-text">Texto da lista para copiar</label><textarea id="copy-text" rows="5" readonly></textarea></div>
           <button class="button primary wide" id="save" ${canConfirm(plan) ? '' : 'disabled'}>Confirmar planejamento</button>
@@ -1601,7 +1630,8 @@ function refreshRoute(plan, accepted) {
   $('.timeline').innerHTML = routeStops(plan);
   $('#route-shopping').innerHTML = routeShopping(plan);
   $('#route-costs').innerHTML = routeCosts(plan);
-  $('#copy').disabled = selectionChanged(plan);
+  $('#copy').disabled = !canCopyPlan(plan);
+  $('#copy-destination').hidden = hasTripDestination();
   $('#save').disabled = !canConfirm(plan);
 }
 
@@ -1634,14 +1664,15 @@ function shopText(plan) {
     });
     return [stores[id].name, stores[id].address, ...rows].join('\n');
   });
-  return ['Compra Certa — Lista de compras', ...groups,
-    'Origem: ' + state.origin + '\nDestino final: ' + destinationName() + '\nPercurso: ' + km(plan.km),
+  const tripDetails = ['Origem: ' + state.origin, 'Destino final: ' + destinationName(), destinationEstimateNote(),
+    'Percurso: ' + km(plan.km)].filter(Boolean).join('\n');
+  return ['Compra Certa — Lista de compras', ...groups, tripDetails,
     'Total estimado: ' + money(plan.total)].join('\n\n');
 }
 
 async function copyPlan() {
   const plan = routePlan();
-  if (!plan || selectionChanged(plan)) return;
+  if (!canCopyPlan(plan)) return;
   const text = shopText(plan);
   try {
     await navigator.clipboard.writeText(text);
@@ -1716,7 +1747,7 @@ function confirmPlan() {
   if (!plan || !canConfirm(plan)) return;
   state.saved = {
     id: plan.id, stores: plan.stores, list: { ...state.list }, total: Math.round(plan.total),
-    origin: state.origin, destination: destinationName(), shoppingDate: state.shoppingDate || todayInputValue(), mode: state.mode, date: Date.now()
+    origin: state.origin, destination: destinationName(), shoppingDate: shoppingInputValue(), mode: state.mode, date: Date.now()
   };
   persist();
   $('#saved-plan').hidden = false;
@@ -1875,11 +1906,15 @@ function screenChange(event) {
   if (id === 'origin') return changeOrigin();
   if (id === 'shopping-date') {
     const input = event.target;
-    if (value && !input.validity.valid) {
-      input.value = state.shoppingDate || todayInputValue();
-      announce('Escolha a data de hoje ou uma data futura.');
+    const error = $('#date-error');
+    if (!input.validity.valid) {
+      input.value = shoppingInputValue();
+      error.textContent = 'Escolha a data de hoje ou uma data futura. Mantivemos a data anterior.';
+      error.hidden = false;
+      announce(error.textContent);
       return;
     }
+    error.hidden = true;
     state.shoppingDate = value;
     if (!value) input.value = todayInputValue();
     state.saved = null;

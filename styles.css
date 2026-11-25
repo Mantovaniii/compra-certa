@@ -519,7 +519,7 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
   background: var(--background);
   padding: .55rem .7rem;
 }
-.map-controls { display: none; }
+.map-controls { display: flex; margin-top: .55rem; }
 .map-controls button[aria-pressed="true"] { background: var(--green-tint); border-color: var(--primary); }
 .map-offers { margin: 0; padding: 0; list-style: none; font-size: .875rem; }
 .map-offers a { display: inline-flex; align-items: center; min-height: 44px; }
@@ -568,7 +568,6 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
 }
 @media (max-width: 639px) {
   .home-price { text-align: left; }
-  .map-controls { display: flex; margin-top: .55rem; }
 }
 @media (max-width: 420px) {
   .home-dropdown-toggle, .home-search > .primary { padding-inline: .3rem; font-size: .85rem; }

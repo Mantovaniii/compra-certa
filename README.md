@@ -27,11 +27,11 @@ No navegador, abra `http://localhost:8000`. HTML, CSS e JavaScript puro são suf
 
 | Tela | Como usar |
 | --- | --- |
-| **Início** · `#inicio` | Busque pelo nome e use **Categorias** e **Filtros**. Compare preços por embalagem e por kg ou litro, distâncias e selos. Em telas estreitas, use **Ver mapa** junto à contagem de ofertas. Selecione uma loja para ver suas ofertas e use **Editar percurso** para abrir os parâmetros de trajeto. **Adicionar produto à lista** inclui uma embalagem e mostra o atalho **Ver minha lista**. |
+| **Início** · `#inicio` | Busque pelo nome e use **Categorias** e **Filtros**. Compare preços por embalagem e por kg ou litro, distâncias e selos. Preços informados há mais de 24 horas têm aviso na oferta e na lista do mapa. Em telas estreitas, use **Ver mapa** junto à contagem de ofertas. Selecione uma loja pelo mapa ou pelos botões com nome. **Adicionar produto à lista** inclui uma embalagem e mostra o atalho **Ver minha lista**. |
 | **Minha lista** · `#lista` | A lista inicial contém arroz, leite e tomate. Digite um nome e use ↑/↓ e Enter para escolher uma sugestão, ou separe vários nomes por vírgulas e pressione **Adicionar**. Ajuste de 1 a 20 embalagens por produto. **Desfazer** fica disponível por 12 segundos após uma remoção. Use **Comparar cesta** junto à lista ou abra **Editar trajeto, data e filtros** para ajustar os parâmetros. |
 | **Comparação de cestas** · `#comparar` | Compare uma loja e duas lado a lado quando houver planos completos para ambas as opções. Troque a prioridade entre custo total, distância e origem documentada. Abra **Editar transporte** para recalcular a comparação. **Produtos e ofertas** mostra preços, validade e fonte. A estrela alterna o favorito. Planos parciais mostram a cobertura e os itens que faltam. |
 | **Detalhes da oferta** · `#produto/<produto>/<loja>` | Confira embalagem, preço unitário, validade, procedência e preços nas outras lojas. No **Histórico de preços**, alterne entre **7**, **30** e **90 dias**. Consulte o preço diário pelo gráfico, com as setas no controle ou em **Ver tabela de datas e preços**. O link no topo retorna à tela de origem. O endereço `#produto/<produto>` abre a primeira oferta cadastrada. **Reportar divergência de preço ou validade** permite revisar e registrar um relato simulado. |
-| **Rota e resumo** · `#rota` | Selecione um plano completo na comparação para conferir o mapa, as paradas, os itens por loja e os alertas. Edite o destino ou o transporte para atualizar a estimativa. Se as lojas, a composição ou o valor da seleção mudarem após outros ajustes, confira a proposta atualizada antes de confirmar. **Confirmar planejamento** grava a lista na sessão e exibe a confirmação junto ao botão. |
+| **Rota e resumo** · `#rota` | Selecione um plano completo na comparação para conferir o mapa, as paradas, os itens por loja e os alertas. Edite o destino ou o transporte para atualizar a estimativa. Se a proposta mudar, revise-a antes de confirmar. A cópia do resumo fica disponível com o destino definido e inclui o aviso caso a estimativa use um local aproximado. **Confirmar planejamento** grava a lista na sessão e exibe a confirmação junto ao botão. |
 
 No cabeçalho, **Modo Escuro** e **Modo Claro** alternam o tema. **Leitura ampliada** pode ser ativada em ambos.
 
@@ -54,7 +54,7 @@ Abra **Categorias** ou **Filtros** na barra de busca. Escolher uma categoria atu
 | **Padaria & Laticínios** | Pão e leite |
 
 - A busca ignora diferenças de acento e maiúsculas e funciona junto com a categoria e os filtros ativos. Envie a busca em branco para limpar o termo. Quando houver vários produtos nos resultados, escolha um deles ou use **Todos os produtos** para comparar as ofertas na mesma lista.
-- **Sustentáveis** exige pelo menos um selo de orgânico, vegano ou produtor local. **Validade Próxima (Desconto)** mostra lotes com desconto que vencem no dia da compra ou nos três dias seguintes. **Apenas Lojas Abertas** usa o status da consulta simulada. Esses filtros podem ficar ativos ao mesmo tempo.
+- **Orgânico, vegano ou local** mostra ofertas com pelo menos um desses atributos. **Validade Próxima (Desconto)** mostra lotes com desconto que vencem no dia da compra ou nos três dias seguintes. **Apenas Lojas Abertas** usa a consulta simulada às 19h30 de um dia útil, quando o Hortifrúti já está fechado. Esses filtros podem ficar ativos ao mesmo tempo.
 - **Mais Próximos** ordena pela distância da origem informada em **Minha lista**. **Menor Preço** ordena pelo preço da embalagem. Cada opção desativa a outra e pode ser desligada com um segundo clique. Os filtros do Início controlam as ofertas da tela inicial. Os controles de **Minha lista** configuram a comparação de cestas.
 - Com o teclado, use **Enter** ou **Espaço** para abrir o menu e selecionar uma opção. As setas **↑** e **↓** percorrem as opções. Pressione **Esc** para fechar e devolver o foco ao botão. Clicar fora ou clicar novamente no botão também fecha o menu.
 
@@ -80,7 +80,7 @@ Abra **Categorias** ou **Filtros** na barra de busca. Escolher uma categoria atu
 | RF04 | Planos individuais e divisão de itens em duas lojas, com cobertura, faltantes e custos | P1, P2 |
 | RF05 | Seletor de custo total, proximidade e origem documentada | P1–P4 |
 | RF06 | Origem manual e localização opcional, com retorno à entrada manual se a localização falhar | P2, P4 |
-| RF07 | Raio de 1, 3, 5 ou 10 km, filtro de lojas abertas e data/hora da consulta simulada. As três lojas da amostra estão abertas | P1, P2 |
+| RF07 | Raio de 1, 3, 5 ou 10 km e filtro de lojas abertas no horário indicado da consulta simulada | P1, P2 |
 | RF08 | Mapa interativo com direção e quilometragem por trecho, lista de paradas, endereços, destino configurável, distância, duração e transporte | P1, P2, P4 |
 | RF09 | Consumo e preço editáveis com recálculo imediato, subtotal e economia líquida com referência explícita | P1, P2, P4 |
 | RF10 | Data da compra, avisos de validade próxima, lotes vencidos excluídos e validade ausente identificada | P1, P4 |
