@@ -120,9 +120,10 @@ const state = {
   reading: readLocal('localStorage', storageKey + '-reading') === true,
   priority: previous?.priority ?? 'cost',
   mode: previous?.mode ?? 'car',
-  consumption: previous ? previous.consumption : 10,
-  fuel: previous ? previous.fuel : 6,
+  consumption: previous?.consumption === undefined ? 10 : previous.consumption,
+  fuel: previous?.fuel === undefined ? 6 : previous.fuel,
   selected: previous?.selected ?? null,
+  selectedReview: previous?.selectedReview ?? null,
   saved: previous?.saved ?? null,
   reports: previous?.reports ?? [],
   demoTime: previous?.demoTime ?? Date.now()
@@ -274,11 +275,11 @@ function makePlan(id, ids, items, keys) {
     total: travel === null ? null : subtotal + travel,
     complete: missing.length === 0,
     stale: items.some(isStale),
-    evidence: items.reduce((sum, offer) => sum + Object.values(offer.evidence).filter(value => value.documented).length, 0)
+    evidence: items.reduce((sum, offer) => sum + documentedCount(offer), 0)
   };
 }
 
-function buildPlans() {
+function buildPlans({ keepUnpricedSelection = false } = {}) {
   const keys = Object.keys(state.list);
   if (!keys.length) return [];
   const allowed = shops.filter(eligibleStore);
@@ -287,16 +288,21 @@ function buildPlans() {
   const pairs = [];
   for (const [index, first] of allowed.entries()) {
     for (const second of allowed.slice(index + 1)) {
-      const rank = (a, b) => a.price - b.price || Number(isStale(a)) - Number(isStale(b));
+      const rank = (a, b) => (state.priority === 'origin' ? documentedCount(b) - documentedCount(a) : 0) ||
+        a.price - b.price || Number(isStale(a)) - Number(isStale(b));
       const items = keys.map(key => available.filter(offer =>
         offer.product === key && [first, second].includes(offer.store)).sort(rank)[0]).filter(Boolean);
-      const used = [...new Set(items.map(offer => offer.store))].sort((a, b) => storeLeg(a)[0] - storeLeg(b)[0]);
-      if (used.length === 2) pairs.push(makePlan('split', used, items, keys));
+      if (items.some(offer => offer.store === first) && items.some(offer => offer.store === second)) {
+        pairs.push(makePlan('split', [first, second], items, keys), makePlan('split', [second, first], items, keys));
+      }
     }
   }
-  pairs.sort((a, b) => a.missing.length - b.missing.length || a.subtotal - b.subtotal ||
-    Number(a.stale) - Number(b.stale) || a.km - b.km);
-  if (pairs.length) plans.push(pairs[0]);
+  pairs.sort(comparePlans);
+  if (pairs.length) {
+    const previous = keepUnpricedSelection && travelCost(0) === null
+      ? pairs.find(pair => pair.complete && sameComposition(pair, state.selectedReview)) : null;
+    plans.push(previous ?? pairs[0]);
+  }
   return plans;
 }
 
@@ -305,12 +311,21 @@ function sortByTotal(a, b) {
   return Math.round(a.total) - Math.round(b.total);
 }
 
-function sortedPlans() {
-  return buildPlans().sort((a, b) =>
-    a.missing.length - b.missing.length ||
+function documentedCount(offer) {
+  return Object.values(offer.evidence).filter(value => value.documented).length;
+}
+
+function comparePlans(a, b) {
+  return a.missing.length - b.missing.length ||
     (state.priority === 'distance' ? a.km - b.km : 0) ||
     (state.priority === 'origin' ? b.evidence - a.evidence : 0) ||
-    sortByTotal(a, b) || a.stores.length - b.stores.length || a.km - b.km);
+    sortByTotal(a, b) || (a.total === null && b.total === null ? a.subtotal - b.subtotal : 0) ||
+    a.stores.length - b.stores.length || a.km - b.km ||
+    Number(a.stale) - Number(b.stale) || storeLeg(a.stores[0])[0] - storeLeg(b.stores[0])[0];
+}
+
+function sortedPlans() {
+  return buildPlans().sort(comparePlans);
 }
 
 function referencePlan() {
@@ -506,6 +521,7 @@ let homeQuery = '';
 let homeTerm = '';
 let homeOrder = '';
 let homeAdded = null;
+let homeView = 'offers';
 let mapStore = null;
 
 function homeOffers() {
@@ -543,9 +559,12 @@ function homeCard(offer) {
     </div>
     ${near && offer.regular > offer.price ? `<p class="hint">Preço regular de ${money(offer.regular)} por embalagem</p>` : ''}
     <div class="badges">${near ? validity(offer) : ''}${offerBadges(offer)}</div>
-    <button type="button" data-home-add="${id}" ${added ? 'data-added' : ''} ${quantity >= 20 ? 'disabled' : ''}>
-      ${added ? '✓ Adicionado · ' + quantity + ' na lista' : quantity >= 20 ? 'Limite de 20 na lista' : 'Adicionar à lista de compras'}
-    </button>
+    <div class="actions home-offer-actions">
+      <button type="button" data-home-add="${id}" ${added ? 'data-added' : ''} ${quantity >= 20 ? 'disabled' : ''}>
+        ${added ? '✓ Adicionado · ' + quantity + ' na lista' : quantity >= 20 ? 'Limite de 20 na lista' : 'Adicionar produto à lista'}
+      </button>
+      ${added ? '<a class="button" href="#lista">Ver minha lista</a>' : ''}
+    </div>
   </article>`;
 }
 
@@ -616,19 +635,21 @@ function homeResults() {
     <div class="home-results-top">
       <div><h2 id="home-results-title" tabindex="-1">${escape(title)}</h2>
         <p class="hint" id="home-results-count">${homeTerm ? `Busca por “${escape(homeTerm)}” · ` : ''}${results.length} ${results.length === 1 ? 'oferta encontrada' : 'ofertas encontradas'}</p></div>
+      ${results.length ? `<button type="button" id="home-view" aria-controls="home-map home-offers">${homeView === 'map' ? 'Ver ofertas' : 'Ver mapa'}</button>` : ''}
     </div>
     ${availableProducts.length > 1 || homeProduct ? `<div class="quick home-products" role="group" aria-label="Selecionar produto">
       ${homeOption('product', 'all', 'Todos os produtos', !homeProduct)}
       ${availableProducts.map(id => homeOption('product', id, products[id].short, homeProduct === id)).join('')}
     </div>` : ''}
-    <div class="layout home-layout">
-      <div class="home-offers">${results.length ? results.map(homeCard).join('') : '<p class="notice">Nenhuma oferta encontrada. Tente outro termo, categoria ou filtro.</p>'}</div>
-      <section class="panel map-panel" aria-labelledby="home-map-title">
+    ${results.length ? `<div class="layout home-layout" data-view="${homeView}">
+      <div class="home-offers" id="home-offers">${results.map(homeCard).join('')}</div>
+      <section class="panel map-panel" id="home-map" aria-labelledby="home-map-title">
         <h3 id="home-map-title">Mercados no mapa</h3>
         ${cityMap(results, storeIds)}
-        <p class="hint">Origem: ${escape(state.origin)}${!state.sameDestination && state.destination ? ' · Destino: ' + escape(state.destination) : ''} · <a href="#lista">Editar percurso</a></p>
+        <p class="hint">Origem: ${escape(state.origin)}${!state.sameDestination && state.destination ? ' · Destino: ' + escape(state.destination) : ''} · <a href="#lista" data-edit-settings="origin">Editar percurso</a></p>
       </section>
-    </div>
+    </div>` : `<div class="notice stack"><p>Nenhuma oferta encontrada. Tente outro termo, categoria ou filtro.</p>
+      <div><button type="button" id="reset-home">Limpar busca e filtros</button></div></div>`}
   </section>`;
 }
 
@@ -684,6 +705,7 @@ function submitHomeSearch() {
   homeTerm = homeQuery = $('#home-query').value.trim();
   $('#home-query').value = homeQuery;
   homeProduct = '';
+  homeView = 'offers';
   closeHomeMenu();
   updateHome('#home-query');
 }
@@ -724,10 +746,16 @@ function listScreen() {
             </div>
             <button class="remove" data-remove="${id}" aria-label="Remover ${products[id].name}">Remover</button>
           </li>`).join('')}</ul>` : '<p class="notice">Sua lista está vazia. Busque um produto para começar.</p>'}
-        <div class="summary-actions"><button class="danger" id="clear" ${entries.length ? '' : 'disabled'}>Limpar lista</button></div>
+        <div class="summary-actions basket-actions">
+          <div><p class="hint">${types()} ${types() === 1 ? 'produto' : 'produtos'} · ${units} ${units === 1 ? 'embalagem' : 'embalagens'}</p>
+            <button class="button primary" id="compare" ${units ? '' : 'disabled'}>Comparar cesta <span aria-hidden="true">→</span></button></div>
+          <button class="danger" id="clear" ${entries.length ? '' : 'disabled'}>Limpar lista</button>
+        </div>
       </section>
       <aside class="panel" aria-labelledby="settings-title">
-        ${sectionTitle('settings-title', 'Parâmetros da busca', '⌖')}
+        <details id="list-settings" ${listSettingsOpen ? 'open' : ''}>
+          <summary id="settings-title">Editar trajeto, data e filtros
+            <span id="list-settings-summary" class="hint">${listSettingsSummary()}</span></summary>
         ${originSettings()}
         ${destinationSettings()}
         <div class="field">
@@ -744,12 +772,21 @@ function listScreen() {
         </div>
         <fieldset><legend>Disponibilidade e lotes</legend>${['open', 'onlyFav', 'near'].map(filter).join('')}</fieldset>
         ${sustainabilityFilters()}
-        <div class="summary-actions stack">
-          <p class="hint">${types()} ${types() === 1 ? 'tipo de produto' : 'tipos de produto'} · ${units} ${units === 1 ? 'embalagem' : 'embalagens'}</p>
-          <button class="button primary wide" id="compare" ${units ? '' : 'disabled'}>Comparar minha cesta (${units} ${units === 1 ? 'item' : 'itens'}) <span aria-hidden="true">→</span></button>
-        </div>
+        </details>
       </aside>
     </div>`;
+}
+
+function listSettingsSummary() {
+  const filters = Object.keys(filterLabels).filter(key => key !== 'near' && state.filters[key]).length +
+    Number(!state.filters.near);
+  const destination = state.sameDestination ? 'Retorno à origem' : destinationName();
+  return `${escape(state.origin)} · ${escape(destination)} · Até ${state.filters.radius} km · ${shoppingDateFormatter.format(shoppingDay() * dayMs)}${filters ? ' · ' + filters + (filters === 1 ? ' filtro ativo' : ' filtros ativos') : ''}`;
+}
+
+function updateListSettingsSummary() {
+  const summary = $('#list-settings-summary');
+  if (summary) summary.innerHTML = listSettingsSummary();
 }
 
 function originSettings() {
@@ -772,7 +809,7 @@ function costs(plan) {
     <div><dt>Subtotal dos produtos</dt><dd>${money(plan.subtotal)}</dd></div>
     <div><dt>Deslocamento estimado</dt><dd>${money(plan.travel)}</dd></div>
     <div class="total"><dt>${plan.complete ? 'Custo total estimado' : 'Total parcial estimado'}</dt><dd>${money(plan.total)}</dd></div>
-  </dl>`;
+  </dl>${plan.stale ? '<p class="notice warning">Inclui preço informado há mais de 24 h.</p>' : ''}`;
 }
 
 function savings(plan, reference) {
@@ -781,7 +818,7 @@ function savings(plan, reference) {
   const label = difference === 0 ? 'Mesmo custo da referência' :
     (difference > 0 ? 'Economia líquida de ' : 'Custo adicional de ') + money(Math.abs(difference));
   return `<p class="notice ${difference > 0 ? 'success' : difference < 0 ? 'negative' : ''}"><strong>${label}</strong><br>
-    <span class="hint">Em relação ao Mercado Bairro, com deslocamento.</span></p>`;
+    <span class="hint">Em relação ao Mercado Bairro (${money(reference.total)} com deslocamento${storeLeg('bairro')[0] > state.filters.radius ? ', fora do raio' : ''}).</span></p>`;
 }
 
 function validity(offer) {
@@ -813,7 +850,7 @@ function offerRow(offer, showStore = false) {
 }
 
 function planCard(plan, reference, best) {
-  const selected = state.selected === plan.id;
+  const selected = state.selected === plan.id && !selectionChanged(plan);
   const store = stores[plan.id];
   const favorite = state.favorites.has(plan.id);
   return `<article class="panel ${selected ? 'selected' : ''}" aria-labelledby="plan-${plan.id}">
@@ -825,7 +862,7 @@ function planCard(plan, reference, best) {
       plan.stores.map(id => stores[id].name).join(' + ')}</p>
     <div class="badges">
       <span class="badge ${plan.complete ? 'success' : 'warning'}">${plan.items.length}/${types()} itens disponíveis</span>
-      ${best === plan.id ? '<span class="badge success">Menor custo estimado</span>' : ''}
+      ${best === plan.id ? '<span class="badge success">Menor custo com preços atualizados</span>' : ''}
       ${selected ? '<span class="badge">Plano selecionado</span>' : ''}
     </div>
     ${plan.missing.length ? `<p class="hint">Faltam ${plan.missing.map(id => products[id].short).join(', ')}.</p>` : ''}
@@ -843,34 +880,71 @@ function planCard(plan, reference, best) {
 
 function travelAssumptions() {
   if (state.mode === 'walk') return 'Caminhada estimada a 4 km/h, com custo monetário de R$ 0,00.';
-  if (state.consumption === null || state.fuel === null) return 'Consumo ou preço do combustível pendente na tela de rota.';
+  if (state.consumption === null || state.fuel === null) return 'Informe consumo e preço do combustível para estimar o custo de carro.';
   return 'Consumo de ' + numberFormatter.format(state.consumption) + ' km/L · Combustível a ' + money(state.fuel * 100) + '/L.';
 }
 
-function comparisonScreen() {
+function comparisonOverview(plans) {
+  const single = plans.find(plan => plan.complete && plan.stores.length === 1);
+  const split = plans.find(plan => plan.complete && plan.id === 'split');
+  if (!single || !split) return '';
+  const distance = split.km - single.km;
+  const priceDifference = split.total === null || single.total === null ? null : Math.round(single.total) - Math.round(split.total);
+  const priceLabel = priceDifference === null ? '' : priceDifference === 0 ? 'mesmo custo' :
+    money(Math.abs(priceDifference)) + (priceDifference > 0 ? ' a menos' : ' a mais');
+  const distanceLabel = Math.abs(distance) < .05 ? 'mesma distância' : km(Math.abs(distance)) + (distance > 0 ? ' a mais' : ' a menos');
+  const evidence = plan => state.priority === 'origin'
+    ? ` · ${plan.evidence} ${plan.evidence === 1 ? 'evidência documentada' : 'evidências documentadas'}` : '';
+  return `<section class="panel comparison-overview" aria-labelledby="comparison-overview-title">
+    <h2 id="comparison-overview-title">Uma loja ou duas?</h2>
+    <p class="hint">Prioridade selecionada: ${priorities[state.priority]}.</p>
+    <dl class="comparison-options">
+      <div><dt>Uma loja · ${single.name}</dt><dd><strong>${money(single.total)}</strong> · ${km(single.km)}${evidence(single)}</dd></div>
+      <div><dt>Duas lojas · ${split.stores.map(id => stores[id].name).join(' + ')}</dt><dd><strong>${money(split.total)}</strong> · ${km(split.km)}${evidence(split)}</dd></div>
+    </dl>
+    <p>Duas lojas: ${priceLabel ? `<strong>${priceLabel}</strong> · ` : ''}${distanceLabel}.</p>
+    ${single.stale || split.stale ? '<p class="hint">Esta comparação inclui preços informados há mais de 24 h.</p>' : ''}
+  </section>`;
+}
+
+function comparisonResults() {
   const plans = sortedPlans();
   const best = plans.filter(plan => plan.complete && !plan.stale && plan.total !== null)
     .sort((a, b) => sortByTotal(a, b) || a.stores.length - b.stores.length || a.km - b.km)[0]?.id;
   const reference = referencePlan();
   const filters = Object.keys(filterLabels).filter(key => state.filters[key]).map(key => filterLabels[key]);
+  const candidate = plans.find(plan => plan.id === state.selected && plan.complete);
+  const referenceContext = !types() ? '' : reference.complete
+    ? `Referência de economia: Mercado Bairro${reference.total === null ? ' (total não estimado)' : ' (' + money(reference.total) + ' com deslocamento)'}.${storeLeg('bairro')[0] > state.filters.radius ? ' Fica fora do raio selecionado e serve como referência.' : !eligibleStore('bairro') ? ' Está fora dos filtros de loja e serve como referência.' : ''}`
+    : 'O Mercado Bairro não cobre a cesta com os filtros de oferta.';
+  return `
+    <div class="results-context stack">
+      <p class="hint">Origem: ${escape(state.origin)} · Destino final: ${escape(destinationName())} · Raio: ${state.filters.radius} km · ${state.mode === 'car' ? 'Carro' : 'A pé'} · Compra em ${shoppingDateFormatter.format(shoppingDay() * dayMs)} · Consulta das lojas em ${timeFormatter.format(state.demoTime)}.</p>
+      <p class="hint">${filters.length ? filters.join(' · ') : 'Sem filtros adicionais'}${state.filters.near ? '' : ' · Validade próxima excluída'}.</p>
+      ${referenceContext ? `<p class="hint">${referenceContext}</p>` : ''}
+      ${types() && reference.total === null ? '<p class="notice warning">Total não estimado. Abra “Editar transporte” e informe consumo e preço válidos.</p>' : ''}
+      ${state.priority === 'origin' ? '<p class="notice">A ordem considera a quantidade de atributos com documento informado. Declarações são exibidas nos detalhes.</p>' : ''}
+      ${!types() ? '<p class="notice">Sua lista está vazia. Adicione produtos para comparar.</p>' : ''}
+      ${types() && !plans.some(plan => plan.complete) ? '<div class="notice stack"><p>Nenhum plano completo atende aos filtros. Aumente o raio ou revise as preferências.</p><button id="reset-filters">Restaurar filtros padrão</button></div>' : ''}
+    </div>
+    ${planReviewNotice(candidate)}
+    ${comparisonOverview(plans)}
+    <div class="cards">${plans.map(plan => planCard(plan, reference, best)).join('')}</div>`;
+}
+
+function comparisonScreen() {
   return heading('Comparação de cestas', 'Compare cobertura, preço e deslocamento antes de escolher onde comprar.') + `
     <div class="toolbar">
       <div class="field"><label for="priority">Prioridade da ordenação</label><select id="priority">
         ${Object.entries(priorities).map(([key, value]) => `<option value="${key}" ${key === state.priority ? 'selected' : ''}>${value}</option>`).join('')}
       </select></div>
-      <a class="button" href="#lista">Editar lista e filtros</a>
+      <a class="button" href="#lista" data-edit-settings="settings-title">Editar trajeto, data e filtros</a>
     </div>
-    <div class="results-context stack">
-      <p class="hint">Origem: ${escape(state.origin)} · Destino final: ${escape(destinationName())} · Raio: ${state.filters.radius} km · ${state.mode === 'car' ? 'Carro' : 'A pé'} · Compra em ${shoppingDateFormatter.format(shoppingDay() * dayMs)} · Consulta das lojas em ${timeFormatter.format(state.demoTime)}.</p>
-      <p class="hint">${filters.length ? filters.join(' · ') : 'Sem filtros adicionais'}${state.filters.near ? '' : ' · Validade próxima excluída'}.</p>
-      <p class="hint">${reference.complete ? 'Referência de custo: Mercado Bairro.' : 'Referência indisponível: o Mercado Bairro não cobre a cesta para os filtros de oferta.'}
-        ${travelAssumptions()}
-      </p>
-      ${state.priority === 'origin' ? '<p class="notice">A ordem considera a quantidade de atributos com documento informado. Declarações são exibidas nos detalhes.</p>' : ''}
-      ${!types() ? '<p class="notice">Sua lista está vazia. Adicione produtos para comparar.</p>' : ''}
-      ${types() && !plans.some(plan => plan.complete) ? '<div class="notice stack"><p>Nenhum plano completo atende aos filtros. Aumente o raio ou revise as preferências.</p><button id="reset-filters">Restaurar filtros padrão</button></div>' : ''}
-    </div>
-    <div class="cards">${plans.map(plan => planCard(plan, reference, best)).join('')}</div>`;
+    <details class="panel transport-settings" id="comparison-transport" ${comparisonTransportOpen ? 'open' : ''}>
+      <summary>Editar transporte <span class="hint" id="transport-summary">${travelAssumptions()}</span></summary>
+      ${transportSettings()}
+    </details>
+    <div id="comparison-results">${comparisonResults()}</div>`;
 }
 
 const periods = { 7: '7 dias', 30: '30 dias (1 mês)', 90: '90 dias (3 meses)' };
@@ -925,7 +999,15 @@ function historyChart(offer) {
     <label for="history-day">Consultar preço por dia</label>
     <input id="history-day" type="range" min="0" max="${points.length - 1}" value="${points.length - 1}" aria-valuetext="${dateFormatter.format(last.date)} · ${money(last.price)}">
     <output id="history-value" for="history-day">${dateFormatter.format(last.date)} · ${money(last.price)}</output>
-  </div>`;
+  </div>
+  <details class="history-data" ${historyDataOpen ? 'open' : ''}>
+    <summary>Ver tabela de datas e preços</summary>
+    <table>
+      <caption class="sr-only">Preços simulados por embalagem nos últimos ${historyPeriod} dias</caption>
+      <thead><tr><th scope="col">Data</th><th scope="col">Preço</th></tr></thead>
+      <tbody>${history.slice().reverse().map(point => `<tr><th scope="row">${dateFormatter.format(point.date)}</th><td>${money(point.price)}</td></tr>`).join('')}</tbody>
+    </table>
+  </details>`;
 }
 
 function inspectHistory(index) {
@@ -941,14 +1023,18 @@ function inspectHistory(index) {
 }
 
 function productScreen(offer) {
-  if (!offer) return heading('Oferta indisponível', 'O catálogo não tem uma oferta para este endereço.') +
-    '<a class="button" href="#comparar">Voltar para Comparação</a>';
+  const [backPage, backLabel] = {
+    comparar: ['comparar', 'Voltar à comparação'],
+    rota: ['rota', 'Voltar à rota']
+  }[offerReturn?.page] ?? ['inicio', 'Voltar às ofertas'];
+  const backRow = `<div class="back-row"><a class="button" href="#${backPage}">← ${backLabel}</a></div>`;
+  if (!offer) return backRow + heading('Oferta indisponível', 'O catálogo não tem uma oferta para este endereço.');
   const product = products[offer.product];
   const store = stores[offer.store];
   const [category, description] = productDetails[offer.product];
   const [hours, disposal, payments] = storeDetails[offer.store];
   const alternatives = shops.filter(id => id !== offer.store);
-  return heading(product.name, 'Oferta de ' + store.name) + `
+  return backRow + heading(product.name, 'Oferta de ' + store.name) + `
     <div class="layout">
       <article class="panel" aria-labelledby="product-offer">
         ${sectionTitle('product-offer', 'Detalhes da oferta', '▤')}
@@ -995,12 +1081,43 @@ function productScreen(offer) {
           `<button type="button" data-period="${days}" aria-pressed="${Number(days) === historyPeriod}">${label}</button>`).join('')}</div>
       </div>
       <div id="history-chart">${historyChart(offer)}</div>
-    </section>
-    <div class="back-row actions"><a class="button" href="#inicio">← Voltar para Busca</a><a class="button" href="#comparar">Voltar para Comparação</a></div>`;
+    </section>`;
 }
 
 function routePlan() {
-  return buildPlans().find(plan => plan.id === state.selected && plan.complete);
+  return buildPlans({ keepUnpricedSelection: state.selected === 'split' })
+    .find(plan => plan.id === state.selected && plan.complete);
+}
+
+function planComposition(plan) {
+  return plan.items.map(offer => [offer.product, offer.store, state.list[offer.product]]);
+}
+
+function planReview(plan) {
+  return { stores: plan.stores, total: plan.total === null ? null : Math.round(plan.total), items: planComposition(plan) };
+}
+
+function sameComposition(plan, review) {
+  return plan && review && plan.stores.join('/') === review.stores?.join('/') &&
+    JSON.stringify(planComposition(plan)) === JSON.stringify(review.items);
+}
+
+function selectionChanged(plan) {
+  return Boolean(state.selected && (!sameComposition(plan, state.selectedReview) || planReview(plan).total !== state.selectedReview.total));
+}
+
+function planReviewNotice(plan, inRoute = false) {
+  if (!selectionChanged(plan)) return '';
+  const describe = review => `${review.stores.map(id => stores[id].name).join(' → ')} · ${money(review.total)}`;
+  const previous = state.selectedReview;
+  return `<div class="notice warning plan-review">
+    <strong>${!plan ? 'O plano selecionado ficou indisponível.' : previous ? 'O plano selecionado mudou.' : 'Reveja o plano selecionado.'}</strong>
+    ${previous ? `<p>Plano anterior: ${describe(previous)}.</p>` : ''}
+    ${plan ? `<p>Plano atualizado: ${describe(planReview(plan))}.</p>` : ''}
+    ${inRoute
+      ? `<a class="button" href="#comparar">${plan ? 'Revisar novo plano' : 'Revisar opções da cesta'}</a>`
+      : '<p>Para continuar, escolha um plano completo nesta comparação.</p>'}
+  </div>`;
 }
 
 function routeCosts(plan) {
@@ -1045,18 +1162,47 @@ function routeStops(plan) {
 }
 
 function canConfirm(plan) {
-  return plan.total !== null && (state.sameDestination || Boolean(state.destination));
+  return !selectionChanged(plan) && plan.total !== null && (state.sameDestination || Boolean(state.destination));
+}
+
+function transportSettings() {
+  return `<form id="estimate" class="stack">
+    <div class="field"><label for="mode">Meio de transporte</label><select id="mode">
+      <option value="car" ${state.mode === 'car' ? 'selected' : ''}>Carro</option>
+      <option value="walk" ${state.mode === 'walk' ? 'selected' : ''}>A pé</option>
+    </select></div>
+    <div id="car-fields" class="stack" ${state.mode === 'walk' ? 'hidden' : ''}>
+      <div class="field"><label for="consumption">Consumo (km/L)</label><input type="number" id="consumption" required min="0.1" max="1000" step="any" inputmode="decimal" value="${state.consumption ?? ''}" aria-invalid="${state.consumption === null}"></div>
+      <div class="field"><label for="fuel">Preço do combustível (R$/L)</label><input type="number" id="fuel" required min="0.01" max="1000" step="any" inputmode="decimal" value="${state.fuel ?? ''}" aria-invalid="${state.fuel === null}"></div>
+    </div>
+  </form>
+  <p class="hint" id="cost-formula">${transportFormula()}</p>`;
+}
+
+function transportFormula() {
+  return state.mode === 'car' ? 'Distância total ÷ consumo × preço por litro.' : 'Caminhada com custo monetário de R$ 0,00.';
+}
+
+function routeShopping(plan) {
+  const alerts = plan.items.filter(offer => isNear(offer) || isStale(offer) || offer.expires === null);
+  return plan.stores.map(id => `<section class="stack"><h3>${stores[id].name}</h3>
+    <ul class="offer-list">${plan.items.filter(offer => offer.store === id).map(offer => `<li class="offer-row comparison-price">
+      <span>${state.list[offer.product]} × ${products[offer.product].name} (${products[offer.product].pack})</span>
+      <strong>${money(offer.price * state.list[offer.product])}</strong>
+    </li>`).join('')}</ul></section>`).join('') +
+    (alerts.length ? `<div class="notice warning"><strong>Confira estes lotes antes de sair</strong>
+      <ul>${alerts.map(offer => `<li>${products[offer.product].short} · ${stores[offer.store].name}<br>${validity(offer)}
+        ${isStale(offer) ? '<span class="badge warning">Preço informado há mais de 24 h</span>' : ''}</li>`).join('')}</ul></div>` : '');
 }
 
 function routeScreen(plan) {
   if (!plan) return heading('Rota e resumo', 'Escolha um plano completo na comparação para calcular o percurso até o destino final.') +
-    `<section class="panel stack">${originSettings()}
+    `${planReviewNotice(plan, true)}<section class="panel stack">${originSettings()}
       ${destinationSettings()}
       <div class="actions"><a class="button primary" href="#comparar">Abrir comparação</a><a class="button" href="#lista">Voltar e editar lista</a></div>
     </section>`;
-  const alerts = plan.items.filter(offer => isNear(offer) || isStale(offer) || offer.expires === null);
   return heading('Rota e resumo do planejamento', plan.name) + `
-    <div id="saved-plan" class="notice success results-context" ${state.saved ? '' : 'hidden'}><strong>✓ Planejamento confirmado!</strong> Sua lista ficou salva nesta sessão.</div>
+    <div id="route-review">${planReviewNotice(plan, true)}</div>
     <div class="layout">
       <div class="stack">
         <section class="panel" aria-labelledby="route-title">
@@ -1068,36 +1214,20 @@ function routeScreen(plan) {
         </section>
         <section class="panel" aria-labelledby="shop-list">
           ${sectionTitle('shop-list', 'Compras por loja', '☷')}
-          ${plan.stores.map(id => `<section class="stack"><h3>${stores[id].name}</h3>
-            <ul class="offer-list">${plan.items.filter(offer => offer.store === id).map(offer => `<li class="offer-row comparison-price">
-              <span>${state.list[offer.product]} × ${products[offer.product].name} (${products[offer.product].pack})</span>
-              <strong>${money(offer.price * state.list[offer.product])}</strong>
-            </li>`).join('')}</ul></section>`).join('')}
-          ${alerts.length ? `<div class="notice warning"><strong>Confira estes lotes antes de sair</strong>
-            <ul>${alerts.map(offer => `<li>${products[offer.product].short} · ${stores[offer.store].name}<br>${validity(offer)}
-              ${isStale(offer) ? '<span class="badge warning">Preço informado há mais de 24 h</span>' : ''}</li>`).join('')}</ul></div>` : ''}
+          <div class="stack" id="route-shopping">${routeShopping(plan)}</div>
         </section>
       </div>
       <aside class="panel" aria-labelledby="travel-title">
         ${sectionTitle('travel-title', 'Estimativa de deslocamento', '↔')}
         ${destinationSettings()}
-        <form id="estimate" class="stack">
-          <div class="field"><label for="mode">Meio de transporte</label><select id="mode">
-            <option value="car" ${state.mode === 'car' ? 'selected' : ''}>Carro</option>
-            <option value="walk" ${state.mode === 'walk' ? 'selected' : ''}>A pé</option>
-          </select></div>
-          <div id="car-fields" class="stack" ${state.mode === 'walk' ? 'hidden' : ''}>
-            <div class="field"><label for="consumption">Consumo (km/L)</label><input type="number" id="consumption" required min="0.1" max="1000" step="any" inputmode="decimal" value="${state.consumption ?? ''}"></div>
-            <div class="field"><label for="fuel">Preço do combustível (R$/L)</label><input type="number" id="fuel" required min="0.01" max="1000" step="any" inputmode="decimal" value="${state.fuel ?? ''}"></div>
-          </div>
-        </form>
-        <p class="hint" id="cost-formula">${state.mode === 'car' ? 'Distância total ÷ consumo × preço por litro.' : 'Caminhada com custo monetário de R$ 0,00.'}</p>
+        ${transportSettings()}
         <div id="route-costs" class="stack">${routeCosts(plan)}</div>
         <div class="summary-actions stack">
-          <button class="button wide" id="copy">Copiar lista para WhatsApp / Área de transferência</button>
+          <button class="button wide" id="copy" ${selectionChanged(plan) ? 'disabled' : ''}>Copiar lista para WhatsApp / Área de transferência</button>
           <p class="notice success" id="copy-feedback" hidden>Lista copiada. Você pode colar no WhatsApp.</p>
           <div class="field" id="copy-fallback" hidden><label for="copy-text">Texto da lista para copiar</label><textarea id="copy-text" rows="5" readonly></textarea></div>
           <button class="button primary wide" id="save" ${canConfirm(plan) ? '' : 'disabled'}>Confirmar planejamento</button>
+          <p id="saved-plan" class="notice success" ${state.saved && !selectionChanged(plan) ? '' : 'hidden'}><strong>✓ Planejamento confirmado!</strong> Sua lista ficou salva nesta sessão.</p>
           <a class="button wide" href="#lista">Voltar e editar lista</a>
         </div>
       </aside>
@@ -1105,7 +1235,12 @@ function routeScreen(plan) {
 }
 
 const expandedPlans = new Set();
-let comparisonReturn = null;
+let offerReturn = null;
+let listSettingsOpen = false;
+let listSettingsFocus = null;
+let comparisonTransportOpen = false;
+let historyDataOpen = false;
+let routeEdit = null;
 let undoAction = null;
 let undoTimer;
 let statusFrame;
@@ -1128,35 +1263,39 @@ function locationPage() {
   return { page: ['lista', 'comparar', 'rota'].includes(page) ? page : 'inicio' };
 }
 
+function restoreExpandedPlans() {
+  document.querySelectorAll('[data-offers]').forEach(detail => {
+    detail.open = expandedPlans.has(detail.dataset.offers);
+  });
+}
+
 function render({ focus = false } = {}) {
   const { page, offer } = locationPage();
+  const returning = focus && offerReturn?.page === page ? offerReturn : null;
+  if (focus && page !== 'produto') offerReturn = null;
+  if (returning) mapStore = returning.mapStore;
   cursor = -1;
   suggestions = [];
+  routeEdit = null;
   const screens = { inicio: homeScreen, lista: listScreen, comparar: comparisonScreen,
     produto: () => productScreen(offer), rota: () => routeScreen(routePlan()) };
   $('#screen').innerHTML = screens[page]();
   const title = $('#screen h1');
   document.title = title.textContent + ' | Compra Certa';
   document.querySelectorAll('.site-nav a').forEach(link => {
-    const active = link.hash === '#' + (page === 'produto' ? (comparisonReturn ? 'comparar' : 'inicio') : page);
+    const active = link.hash === '#' + (page === 'produto' ? offerReturn?.page ?? 'inicio' : page);
     if (active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
-  if (page === 'comparar') {
-    document.querySelectorAll('[data-offers]').forEach(detail => { detail.open = expandedPlans.has(detail.dataset.offers); });
-  }
+  if (page === 'comparar') restoreExpandedPlans();
   if (focus) {
-    const previous = page === 'comparar' && comparisonReturn
-      ? document.querySelector(`[data-offers="${comparisonReturn.id}"] a[href="${comparisonReturn.link}"]`) : null;
-    if (previous) {
-      previous.closest('details').open = true;
-      previous.focus();
-    }
-    else {
-      title.focus({ preventScroll: true });
-      window.scrollTo(0, 0);
-    }
-    if (page === 'comparar' || page === 'inicio') comparisonReturn = null;
+    const previous = returning && $(`${returning.scope} a[href="${returning.link}"]`);
+    const visible = previous && previous.getClientRects().length ? previous : null;
+    const settings = page === 'lista' && listSettingsFocus ? document.getElementById(listSettingsFocus) : null;
+    listSettingsFocus = null;
+    (visible || settings || title).focus({ preventScroll: true });
+    window.scrollTo(0, returning?.scroll ?? 0);
+    (visible || settings)?.scrollIntoView({ block: 'nearest' });
   }
 }
 
@@ -1318,6 +1457,7 @@ function changeOrigin() {
   state.origin = origin;
   state.saved = null;
   $('#origin-info').textContent = originHint();
+  updateListSettingsSummary();
   persist();
   announce('Origem atualizada. ' + originHint());
 }
@@ -1414,22 +1554,60 @@ function submitReport() {
   announce('Relato recebido nesta sessão de demonstração.');
 }
 
-function setEstimate(event) {
-  const input = event.target;
-  const field = input.id;
-  state[field] = input.validity.valid && Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : null;
-  input.setAttribute('aria-invalid', String(state[field] === null));
+function wasPlanReviewedBeforeEdit(input) {
+  if (routeEdit?.input !== input) {
+    routeEdit = { input, accepted: !selectionChanged(routePlan()) };
+  }
+  return routeEdit.accepted;
+}
+
+function setEstimate(input) {
+  const onRoute = Boolean($('#route-map'));
+  const accepted = onRoute && wasPlanReviewedBeforeEdit(input);
+  if (input.id === 'mode') {
+    state.mode = input.value;
+    $('#car-fields').hidden = state.mode === 'walk';
+    $('#cost-formula').textContent = transportFormula();
+  } else {
+    const value = input.validity.valid && Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : null;
+    input.setAttribute('aria-invalid', String(value === null));
+    if (state[input.id] === value) return;
+    state[input.id] = value;
+  }
   state.saved = null;
+  if (onRoute) {
+    const plan = routePlan();
+    refreshRoute(plan, accepted);
+    announce(selectionChanged(plan) ? 'O plano mudou. Revise a proposta atualizada.' :
+      'Custo total estimado: ' + money(plan.total) + '.');
+    return;
+  }
   persist();
-  const plan = routePlan();
-  if (!plan) return;
+  $('#transport-summary').textContent = travelAssumptions();
+  $('#comparison-results').innerHTML = comparisonResults();
+  restoreExpandedPlans();
+  announce('Comparação de cestas atualizada.');
+}
+
+function refreshRoute(plan, accepted) {
+  if (accepted && sameComposition(plan, state.selectedReview)) state.selectedReview = planReview(plan);
+  persist();
   $('#saved-plan').hidden = true;
+  $('#copy-feedback').hidden = true;
+  $('#copy-fallback').hidden = true;
+  $('#route-review').innerHTML = planReviewNotice(plan, true);
+  $('#route-metrics').textContent = routeMetrics(plan);
+  $('#route-map').innerHTML = cityMap(plan.items, plan.stores, plan);
+  $('.timeline').innerHTML = routeStops(plan);
+  $('#route-shopping').innerHTML = routeShopping(plan);
   $('#route-costs').innerHTML = routeCosts(plan);
+  $('#copy').disabled = selectionChanged(plan);
   $('#save').disabled = !canConfirm(plan);
-  announce('Custo total estimado: ' + money(plan.total) + '.');
 }
 
 function changeDestination(input) {
+  const onRoute = Boolean($('#route-map'));
+  const accepted = onRoute && wasPlanReviewedBeforeEdit(input);
   if (input.id === 'same-destination') {
     state.sameDestination = input.checked;
     $('#destination-fields').hidden = input.checked;
@@ -1440,19 +1618,12 @@ function changeDestination(input) {
     state.destination = destination;
   }
   $('#destination-info').textContent = state.sameDestination ? '' : destinationHint();
+  updateListSettingsSummary();
   state.saved = null;
-  persist();
-  const map = $('#route-map');
-  if (!map) return;
+  if (!onRoute) return persist();
   const plan = routePlan();
-  if (!plan) return;
-  $('#saved-plan').hidden = true;
-  $('#route-metrics').textContent = routeMetrics(plan);
-  map.innerHTML = cityMap(plan.items, plan.stores, plan);
-  $('.timeline').innerHTML = routeStops(plan);
-  $('#route-costs').innerHTML = routeCosts(plan);
-  $('#save').disabled = !canConfirm(plan);
-  announce('Percurso atualizado. ' + routeMetrics(plan) + '.');
+  refreshRoute(plan, accepted);
+  announce(selectionChanged(plan) ? 'O plano mudou. Revise a proposta atualizada.' : 'Percurso atualizado. ' + routeMetrics(plan) + '.');
 }
 
 function shopText(plan) {
@@ -1470,7 +1641,7 @@ function shopText(plan) {
 
 async function copyPlan() {
   const plan = routePlan();
-  if (!plan) return;
+  if (!plan || selectionChanged(plan)) return;
   const text = shopText(plan);
   try {
     await navigator.clipboard.writeText(text);
@@ -1532,8 +1703,9 @@ function favoriteStore(id) {
 function selectPlan(id, route) {
   const plan = buildPlans().find(item => item.id === id && item.complete);
   if (!plan) return;
-  if (state.selected !== id) state.saved = null;
+  if (state.selected !== id || selectionChanged(plan)) state.saved = null;
   state.selected = id;
+  state.selectedReview = planReview(plan);
   persist();
   if (route) navigate('rota');
   else update('Plano selecionado: ' + plan.name + '.', `[data-select="${id}"]`);
@@ -1577,6 +1749,7 @@ function closeConfirm() {
     clearUndo();
     state.list = {};
     state.selected = null;
+    state.selectedReview = null;
     changeList('Lista limpa.', '#search', false);
     return;
   }
@@ -1598,9 +1771,22 @@ function screenClick(event) {
   if (point) return inspectHistory(point.dataset.chartPoint);
   const suggestion = event.target.closest('[data-suggest]');
   if (suggestion) return chooseSuggestion(suggestion.dataset.suggest);
-  const link = event.target.closest('a[href^="#produto/"]');
-  const details = link?.closest('[data-offers]');
-  if (details) comparisonReturn = { id: details.dataset.offers, link: link.hash };
+  const link = event.target.closest('a');
+  if (link && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+    if (link.dataset.editSettings) {
+      listSettingsOpen = true;
+      listSettingsFocus = link.dataset.editSettings;
+    }
+    const { page } = locationPage();
+    if (link.hash?.startsWith('#produto/') && page !== 'produto') {
+      const details = link.closest('[data-offers]');
+      const scope = details ? `[data-offers="${details.dataset.offers}"]` :
+        link.closest('#map-selection') ? '#map-selection' : '#home-offers';
+      if (details) expandedPlans.add(details.dataset.offers);
+      historyDataOpen = false;
+      offerReturn = { page, scope, link: link.hash, scroll: window.scrollY, mapStore };
+    }
+  }
   const button = event.target.closest('button');
   if (!button) return;
   if (button.hasAttribute('data-home-menu')) {
@@ -1652,6 +1838,19 @@ function screenClick(event) {
   if (favorite) return favoriteStore(favorite);
   if (select || route) return selectPlan(select || route, Boolean(route));
   switch (button.id) {
+    case 'reset-home':
+      homeTerm = homeQuery = homeProduct = homeOrder = '';
+      homeCategory = 'all';
+      homeView = 'offers';
+      homeFilters.clear();
+      update('Busca e filtros limpos.', '#home-query');
+      break;
+    case 'home-view':
+      homeView = homeView === 'map' ? 'offers' : 'map';
+      $('.home-layout').dataset.view = homeView;
+      button.textContent = homeView === 'map' ? 'Ver ofertas' : 'Ver mapa';
+      announce(homeView === 'map' ? 'Mapa de mercados exibido.' : 'Lista de ofertas exibida.');
+      break;
     case 'compare': navigate('comparar'); break;
     case 'clear': confirmClear(button); break;
     case 'locate': locate(); break;
@@ -1668,7 +1867,11 @@ function screenClick(event) {
 
 function screenChange(event) {
   const { id, dataset, value, checked } = event.target;
-  if (id === 'same-destination' || id === 'destination') return changeDestination(event.target);
+  if (id === 'same-destination' || id === 'destination') {
+    changeDestination(event.target);
+    routeEdit = null;
+    return;
+  }
   if (id === 'origin') return changeOrigin();
   if (id === 'shopping-date') {
     const input = event.target;
@@ -1680,23 +1883,25 @@ function screenChange(event) {
     state.shoppingDate = value;
     if (!value) input.value = todayInputValue();
     state.saved = null;
+    updateListSettingsSummary();
     persist();
     announce('Data da compra atualizada. A comparação vai usar a validade nessa data.');
     return;
   }
   if (id === 'priority') {
     state.priority = value;
-    return update('Comparação ordenada por: ' + priorities[value] + '.', '#priority');
+    return update('Comparação ordenada por ' + priorities[value] + '.', '#priority');
   }
   if (id === 'mode') {
-    state.mode = value;
-    state.saved = null;
-    return update('Transporte atualizado. Custo total estimado: ' + money(routePlan()?.total ?? null) + '.', '#mode');
+    setEstimate(event.target);
+    routeEdit = null;
+    return;
   }
   if (id === 'radius' || dataset.filter) {
     if (id === 'radius') state.filters.radius = Number(value);
     else state.filters[dataset.filter] = checked;
     state.saved = null;
+    updateListSettingsSummary();
     persist();
     announce('Preferências de busca atualizadas.');
   }
@@ -1720,15 +1925,6 @@ function applyTheme() {
   $('meta[name="theme-color"]').content = state.dark ? '#121b16' : '#166534';
 }
 
-function alignNavigation() {
-  const nav = $('.site-nav');
-  if (matchMedia('(max-width: 639px)').matches) {
-    if ($('.site-footer').nextElementSibling !== nav) $('.site-footer').after(nav);
-  } else if ($('#conteudo').previousElementSibling !== nav) {
-    $('#conteudo').before(nav);
-  }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   const screen = $('#screen');
   screen.addEventListener('click', screenClick);
@@ -1742,7 +1938,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.target.id === 'home-query') homeQuery = event.target.value;
     if (event.target.id === 'history-day') inspectHistory(event.target.value);
     if (event.target.id === 'destination') changeDestination(event.target);
-    if (['consumption', 'fuel'].includes(event.target.id)) setEstimate(event);
+    if (['consumption', 'fuel'].includes(event.target.id)) setEstimate(event.target);
   });
   screen.addEventListener('keydown', event => {
     if (event.target.id === 'search') searchKey(event);
@@ -1755,15 +1951,22 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', closeOutsideHomeMenu, true);
   document.addEventListener('focusin', closeOutsideHomeMenu);
   screen.addEventListener('pointerdown', event => { if (event.target.closest('[data-suggest]')) event.preventDefault(); });
-  screen.addEventListener('focusout', event => { if (event.target.id === 'search') closeSuggestions(); });
+  screen.addEventListener('focusout', event => {
+    if (event.target.id === 'search') closeSuggestions();
+    if (routeEdit?.input === event.target) routeEdit = null;
+  });
   screen.addEventListener('submit', event => {
     event.preventDefault();
     if (event.target.id === 'add-form') readSearch();
     if (event.target.id === 'home-search') submitHomeSearch();
   });
   screen.addEventListener('toggle', event => {
+    if (!event.target.isConnected) return;
+    if (event.target.id === 'list-settings') listSettingsOpen = event.target.open;
+    if (event.target.id === 'comparison-transport') comparisonTransportOpen = event.target.open;
+    if (event.target.classList.contains('history-data')) historyDataOpen = event.target.open;
     const id = event.target.dataset.offers;
-    if (!id || !event.target.isConnected) return;
+    if (!id) return;
     if (event.target.open) expandedPlans.add(id);
     else expandedPlans.delete(id);
   }, true);
@@ -1798,8 +2001,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mapStore = null;
     render({ focus: true });
   });
-  matchMedia('(max-width: 639px)').addEventListener('change', alignNavigation);
-  alignNavigation();
+  history.scrollRestoration = 'manual';
   applyReading();
   applyTheme();
   if (!location.hash) history.replaceState(null, '', '#inicio');

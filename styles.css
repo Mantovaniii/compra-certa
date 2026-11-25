@@ -191,6 +191,17 @@ fieldset { margin-inline: 0; padding: 0; border: 0; }
 .check { display: flex; align-items: center; gap: .55rem; min-height: 44px; font-weight: 500; cursor: pointer; }
 .check input { width: 1.1rem; height: 1.1rem; flex: none; margin: 0; accent-color: var(--primary); }
 .summary-actions { padding-top: 1rem; border-top: 1px solid var(--line); }
+.basket-actions { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+.basket-actions .hint { margin-bottom: .3rem; }
+#settings-title .hint, #transport-summary { display: block; margin-top: .3rem; font-weight: 400; }
+.transport-settings { margin-bottom: 1rem; }
+.transport-settings[open] form { margin-block: .5rem; }
+.comparison-overview, .plan-review { margin-bottom: 1rem; }
+.comparison-overview { display: grid; gap: .6rem; }
+.comparison-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.comparison-options div { padding: .65rem .8rem; border: 1px solid var(--line); border-radius: var(--small-radius); }
+.comparison-options dd { margin: .25rem 0 0; }
+.plan-review p, .plan-review .button { margin-top: .4rem; }
 .toolbar { display: flex; gap: .75rem 1.25rem; flex-wrap: wrap; justify-content: space-between; align-items: end; margin-bottom: 1rem; }
 .toolbar > .field { flex: 1 1 20rem; max-width: 34rem; }
 .results-context { margin-bottom: 1.15rem; }
@@ -225,16 +236,13 @@ summary { min-height: 44px; padding-block: .625rem; font-weight: 650; cursor: po
 dialog { width: min(31rem, calc(100% - 2rem)); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 1.5rem; background: var(--surface); color: var(--text); }
 dialog::backdrop { background: rgb(23 43 36 / 55%); }
 #report-preview { white-space: pre-wrap; }
-.back-row { margin-top: 1.25rem; }
+.back-row { margin-bottom: .75rem; }
 
 @media (max-width: 800px) {
   .layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 639px) {
-  body { grid-template-rows: auto 1fr auto auto; }
-  main { grid-row: 2; padding-block: 1rem 2rem; }
-  .site-footer { grid-row: 3; }
-  .site-nav { grid-row: 4; }
+  main { padding-block: 1rem 2rem; }
   .shell { width: calc(100% - 2rem); }
   .nav-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; }
   .nav-inner a { flex-direction: column; justify-content: center; text-align: center; padding: .4rem .2rem; gap: .05rem; font-size: .875rem; min-height: 58px; }
@@ -245,6 +253,7 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
   h1 { font-size: 1.75rem; }
   .panel, dialog { padding: 1rem; }
   .cards { grid-template-columns: 1fr; }
+  .comparison-options { grid-template-columns: 1fr; }
 }
 
 :root {
@@ -433,8 +442,9 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
 .home-price strong { display: block; color: var(--primary); font-size: 1.45rem; }
 .home-price .hint { display: block; }
 .home-offer .badges:not(:empty) { margin-top: .55rem; }
-.home-offer button { margin-top: .65rem; }
+.home-offer-actions { margin-top: .65rem; }
 .home-offer button[data-added] { background: var(--success-bg); color: var(--success); }
+#home-view { display: none; }
 
 .sustain-filters, .destination-settings {
   border: 1px solid var(--line);
@@ -533,11 +543,18 @@ dialog::backdrop { background: rgb(23 43 36 / 55%); }
 .chart-marker { fill: var(--primary); stroke: var(--surface); stroke-width: 2; }
 .chart-target { fill: transparent; cursor: crosshair; }
 .chart-inspect { display: flex; align-items: center; gap: .4rem .9rem; flex-wrap: wrap; margin-top: .55rem; }
-.chart-inspect input[type="range"] { flex: 1 1 12rem; width: auto; accent-color: var(--primary); }
-.chart-inspect output { min-width: 10rem; font-variant-numeric: tabular-nums; }
+.chart-inspect input[type="range"] { flex: 1 1 12rem; width: auto; min-width: 0; accent-color: var(--primary); }
+.chart-inspect output { min-width: min(10rem, 100%); max-width: 100%; font-variant-numeric: tabular-nums; }
+.history-data { margin-top: .75rem; }
+.history-data table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.history-data th, .history-data td { padding: .5rem; border-bottom: 1px solid var(--line); text-align: left; }
+.history-data tbody th { font-weight: 400; }
 
 @media (max-width: 800px) {
   .home-layout { grid-template-columns: 1fr; }
+  #home-view { display: inline-flex; align-items: center; }
+  .home-layout[data-view="map"] #home-offers,
+  .home-layout[data-view="offers"] #home-map { display: none; }
 }
 @media (max-width: 719px) {
   .home-search { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
